@@ -92,21 +92,19 @@ def supports_dict(fn):
 @builder.register("rearrange")
 @supports_dict
 def rearrange(data: TensorTypeVar, pattern: str, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.rearrange(  # type: ignore # bad typing by einops
-        tensor=data, pattern=pattern, **kwargs
-    )
+    return einops.rearrange(tensor=data, pattern=pattern, **kwargs)
 
 
 @builder.register("reduce")
 @supports_dict
 def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.reduce(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+    return einops.reduce(tensor=data, **kwargs)
 
 
 @builder.register("repeat")
 @supports_dict
 def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.repeat(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+    return einops.repeat(tensor=data, **kwargs)
 
 
 @builder.register("multiply")

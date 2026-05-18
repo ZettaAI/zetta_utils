@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import sys
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Iterable, Optional, cast
 
 import attrs
 import numpy as np
 from google.api_core.exceptions import GoogleAPICallError
 from google.api_core.retry import Retry
-from google.cloud.firestore import And, ArrayRemove, ArrayUnion, Client, FieldFilter, Or
+from google.cloud.firestore import (
+    And,
+    ArrayRemove,
+    ArrayUnion,
+    Client,
+    DocumentSnapshot,
+    FieldFilter,
+    Or,
+)
+from google.cloud.firestore_v1.base_query import BaseFilter
 from tenacity import (
     retry,
     retry_if_not_exception_type,
@@ -19,10 +28,13 @@ from tenacity import (
 )
 
 from zetta_utils import builder
-from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
+from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT
 
 MAX_KEYS_PER_REQUEST = 1000
 TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
+
+FirestoreWriteValueT = DBValueT | ArrayUnion | ArrayRemove | None
+FirestoreWriteRowT = dict[str, FirestoreWriteValueT]
 
 
 @builder.register("FirestoreBackend")
@@ -79,7 +91,7 @@ class FirestoreBackend(DBBackend):
 
     def __contains__(self, idx: str) -> bool:
         doc_ref = self.client.collection(self.collection).document(idx)
-        return doc_ref.get().exists
+        return cast(DocumentSnapshot, doc_ref.get()).exists
 
     def __len__(self) -> int:  # pragma: no cover # no emulator support
         collection_ref = self.client.collection(self.collection)
@@ -98,24 +110,25 @@ class FirestoreBackend(DBBackend):
                 raise KeyError(idx.row_keys[0])
         refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         snapshots = self.client.get_all(refs, field_paths=idx.col_keys)
-        results_map = {}
+        results_map: dict[str, dict[str, Any]] = {}
         for snapshot in snapshots:
             if snapshot.exists:
-                results_map[snapshot.id] = snapshot.to_dict()
-                results_map[snapshot.id].pop("_id_nonunique", None)
-        results = []
+                data = snapshot.to_dict() or {}
+                data.pop("_id_nonunique", None)
+                results_map[snapshot.id] = data
+        results: list[DBRowDataT] = []
         for rkey in idx.row_keys:
             results.append(results_map.get(rkey, {}))
         return results
 
     @staticmethod
-    def _expand_dotted_keys(data: DBRowDataT) -> DBRowDataT:
+    def _expand_dotted_keys(data: FirestoreWriteRowT) -> FirestoreWriteRowT:
         """Expand dotted keys into nested dict structure.
 
         Firestore's set() doesn't interpret dots as paths (unlike update()),
         so we need to manually expand "a.b.c": value into {"a": {"b": {"c": value}}}.
         """
-        result: dict = {}
+        result: FirestoreWriteRowT = {}
         for key, value in data.items():
             if "." in key:
                 parts = key.split(".")
@@ -123,7 +136,7 @@ class FirestoreBackend(DBBackend):
                 for part in parts[:-1]:
                     if part not in current:
                         current[part] = {}
-                    current = current[part]
+                    current = current[part]  # type: ignore[assignment]  # nested dict walk
                 current[parts[-1]] = value
             else:
                 result[key] = value
@@ -138,7 +151,7 @@ class FirestoreBackend(DBBackend):
         doc_refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         bulk_writer = self.client.bulk_writer()
         for ref, _row_data in zip(doc_refs, data):
-            row_data: DBRowDataT = {}
+            row_data: FirestoreWriteRowT = {}
             row_data["_id_nonunique"] = np.random.randint(sys.maxsize)
             for k, v in _row_data.items():
                 # handle array values for additions/removals
@@ -165,6 +178,7 @@ class FirestoreBackend(DBBackend):
         If index provided, delete rows from the index; else, delete all rows.
         """
         bulk_writer = self.client.bulk_writer()
+        doc_refs: Iterable[Any]
         if idx is not None:
             doc_refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         else:
@@ -214,8 +228,9 @@ class FirestoreBackend(DBBackend):
             rpc_kwargs["timeout"] = timeout
 
         collection_ref = self.client.collection(self.collection)
+        snapshots: Iterable[DocumentSnapshot]
         if column_filter:
-            _filters = []
+            _filters: list[BaseFilter] = []
             for _key, _values in column_filter.items():
                 if _key[0] == "-":  # represents a column with array value type
                     _key = _key[1:]
@@ -234,16 +249,17 @@ class FirestoreBackend(DBBackend):
                     _q = collection_ref.where(filter=And(_filters))
             snapshots = list(_q.stream(**rpc_kwargs))
         else:
-            refs = collection_ref.list_documents()
+            refs = list(collection_ref.list_documents())
             snapshots = self.client.get_all(
                 refs,
                 field_paths=return_columns if len(return_columns) > 0 else None,
                 **rpc_kwargs,
             )
-        result = {}
+        result: dict[str, DBRowDataT] = {}
         for snapshot in snapshots:
-            result[snapshot.id] = snapshot.to_dict()
-            result[snapshot.id].pop("_id_nonunique", None)
+            data = snapshot.to_dict() or {}
+            data.pop("_id_nonunique", None)
+            result[snapshot.id] = data
         return result
 
     def get_batch(
@@ -276,17 +292,18 @@ class FirestoreBackend(DBBackend):
         offset_end = (batch_number + 1) * scaled_batch_size
         offset_end = sys.maxsize if offset_end > sys.maxsize else offset_end
 
-        filters = [
+        filters: list[BaseFilter] = [
             FieldFilter("_id_nonunique", ">=", offset_start),
             FieldFilter("_id_nonunique", "<", offset_end),
         ]
         collection_ref = self.client.collection(self.collection)
         _query = collection_ref.where(filter=And(filters))
         snapshots = list(_query.stream())
-        result = {}
+        result: dict[str, DBRowDataT] = {}
         for snapshot in snapshots:
-            result[snapshot.id] = snapshot.to_dict()
-            result[snapshot.id].pop("_id_nonunique", None)
+            data = snapshot.to_dict() or {}
+            data.pop("_id_nonunique", None)
+            result[snapshot.id] = data
         return result
 
     def with_changes(self, **kwargs) -> FirestoreBackend:

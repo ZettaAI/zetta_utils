@@ -101,7 +101,10 @@ chunkedgraph = [
   # conda install -c conda-forge graph-tool-base
 ]
 convnet = ["torch >= 2.11", "onnx2torch", "nvidia-ml-py >= 13.580"]
-databackends = ["google-cloud-datastore", "google-cloud-firestore"]
+databackends = [
+  "google-cloud-datastore",
+  "google-cloud-firestore"
+]
 docs = [
   "piccolo_theme >= 0.24.0",
   "sphinx ~= 6.2.1",                        # can unpin this when awscli removes their docutils dependency

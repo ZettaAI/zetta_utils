@@ -2,7 +2,7 @@ from typing import Final, Type
 
 import attrs
 
-MAX_TRANSIENT_RETRIES: Final = 40
+MAX_TRANSIENT_RETRIES: Final = 80
 
 
 @attrs.mutable
@@ -139,6 +139,11 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         text_signature="Temporary failure in name resolution",
     ),
     TransientErrorCondition(
+        # Transient SSL handshake failure (nokura/c10s under load).
+        exception_type=Exception,
+        text_signature="SSL validation failed",
+    ),
+    TransientErrorCondition(
         # ssl.SSLEOFError — peer closed TLS connection mid-handshake/transfer.
         # Surfaces as "EOF occurred in violation of protocol (_ssl.c:NNNN)".
         exception_type=Exception,
@@ -149,5 +154,10 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         # — covers transient TLS faults from nokura/c10s.
         exception_type=Exception,
         text_signature="SSL validation failed for",
+    ),
+    TransientErrorCondition(
+        # S3 upload checksum mismatch — data corrupted in transit.
+        exception_type=Exception,
+        text_signature="XAmzContentSHA256Mismatch",
     ),
 )

@@ -723,6 +723,22 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
             start_coord=self.start / Vec3D(*resolution), end_coord=end_coord, resolution=resolution
         )
 
+    def with_z_voxel_range(
+        self, z_start_vx: int, z_end_vx: int, z_resolution: float
+    ) -> BBox3D:
+        """Return a copy with z bounds replaced by ``[z_start_vx, z_end_vx)``
+        at ``z_resolution`` nm/vx; xy bounds (in nm) are preserved verbatim.
+
+        :param z_start_vx: New z start in voxels.
+        :param z_end_vx: New z end in voxels (semi-open).
+        :param z_resolution: Z voxel size in nm.
+        """
+        return BBox3D.from_coords(
+            start_coord=[self.start[0], self.start[1], z_start_vx * z_resolution],
+            end_coord=[self.end[0], self.end[1], z_end_vx * z_resolution],
+            resolution=(1, 1, 1),
+        )
+
 
 builder.register("BBox3D.from_slices")(BBox3D.from_slices)
 builder.register("BBox3D.from_coords")(BBox3D.from_coords)

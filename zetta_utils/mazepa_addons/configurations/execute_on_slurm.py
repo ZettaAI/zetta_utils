@@ -139,9 +139,17 @@ class SlurmWorkerResources:
     array: Any = attrs.field(validator=check_array, default=None)
     time: str = attrs.field(validator=check_timedelta, default="6-0:0:0")
     partition: str | None = None
+    requeue: bool = True  # auto-respawn array tasks killed by OOM / preemption / non-zero exit
 
     def to_dict(self) -> dict:
-        return dict(attrs.asdict(self, filter=lambda attr, value: value is not None).items())
+        d = dict(attrs.asdict(self, filter=lambda attr, value: value is not None).items())
+        # simple_slurm has separate `requeue` / `no_requeue` flags; translate the bool.
+        requeue = d.pop("requeue", True)
+        if requeue:
+            d["requeue"] = True
+        else:
+            d["no_requeue"] = True
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> SlurmWorkerResources:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Any, Sequence, TypeVar
 
 import attrs
@@ -15,18 +16,58 @@ from .. import ReceivedMessage, TQTask, serialization
 from . import utils
 
 
+@attrs.mutable
+class _BatchDeleter:
+    """
+    Thread-safe accumulator that batches receipt handles for a single SQS
+    queue and issues ``delete_message_batch`` calls of up to
+    ``utils.DELETE_BATCH_SIZE`` entries.
+    """
+
+    queue_name: str
+    region_name: str
+    endpoint_url: str | None = None
+    expected: int = 0
+    _pending: list[str] = attrs.field(factory=list)
+    _added: int = 0
+    _lock: threading.Lock = attrs.field(factory=threading.Lock)
+
+    def add(self, receipt_handle: str) -> None:
+        to_flush: list[list[str]] = []
+        with self._lock:
+            self._pending.append(receipt_handle)
+            self._added += 1
+            while len(self._pending) >= utils.DELETE_BATCH_SIZE:
+                to_flush.append(self._pending[: utils.DELETE_BATCH_SIZE])
+                self._pending = self._pending[utils.DELETE_BATCH_SIZE :]
+            if self.expected > 0 and self._added >= self.expected and self._pending:
+                to_flush.append(self._pending)
+                self._pending = []
+        for chunk in to_flush:
+            self._send(chunk)
+
+    def flush(self) -> None:
+        with self._lock:
+            to_flush = self._pending
+            self._pending = []
+        if to_flush:
+            for i in range(0, len(to_flush), utils.DELETE_BATCH_SIZE):
+                self._send(to_flush[i : i + utils.DELETE_BATCH_SIZE])
+
+    def _send(self, receipts: list[str]) -> None:
+        utils.delete_msg_batch(
+            receipt_handles=receipts,
+            queue_name=self.queue_name,
+            region_name=self.region_name,
+            endpoint_url=self.endpoint_url,
+        )
+
+
 def _delete_task_message(
     receipt_handle: str,
-    queue_name: str,
-    region_name: str,
-    endpoint_url: str | None = None,
+    deleter: _BatchDeleter,
 ):
-    utils.delete_msg_by_receipt_handle(
-        receipt_handle=receipt_handle,
-        queue_name=queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-    )
+    deleter.add(receipt_handle)
 
 
 T = TypeVar("T")
@@ -83,16 +124,20 @@ class SQSQueue(MessageQueue[T]):
             visibility_timeout=self.pull_lease_sec,
         )
 
+        deleter = _BatchDeleter(
+            queue_name=self.name,
+            region_name=self.region_name,
+            endpoint_url=self.endpoint_url,
+            expected=len(msgs),
+        )
+
         for msg in msgs:
-            # Deserialize task object
             tq_task = taskqueue.totask(json.loads(msg.body))
             payload = serialization.deserialize(tq_task.task_ser)
             acknowledge_fn = ComparablePartial(
                 _delete_task_message,
                 receipt_handle=msg.receipt_handle,
-                queue_name=self.name,
-                region_name=self.region_name,
-                endpoint_url=self.endpoint_url,
+                deleter=deleter,
             )
 
             extend_lease_fn = ComparablePartial(

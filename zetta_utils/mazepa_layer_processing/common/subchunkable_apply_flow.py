@@ -73,6 +73,7 @@ class DelegatedSubchunkedOperation(Generic[P]):
         mazepa.Executor(
             do_dryrun_estimation=False,
             show_progress=False,
+            autoexecute_raise_on_transient_error=True,
         )(self.flow_schema(idx, dst, op_args, op_kwargs))
 
 
@@ -1133,6 +1134,16 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
 
     if expand_bbox_backend and dst is not None:
         bbox = _expand_bbox_backend(bbox, dst, dst_resolution, verbose=verbose)
+
+    # Cap processing chunk z to the bbox z-extent at all levels
+    bbox_shape_for_cap = round(bbox.shape / dst_resolution)
+    processing_chunk_sizes = list(processing_chunk_sizes)
+    for i in range(len(processing_chunk_sizes)):
+        processing_chunk_sizes[i] = Vec3D[int](
+            int(processing_chunk_sizes[i][0]),
+            int(processing_chunk_sizes[i][1]),
+            int(min(bbox_shape_for_cap[2], processing_chunk_sizes[i][2])),
+        )
 
     if shrink_processing_chunk:
         processing_chunk_sizes = _shrink_processing_chunk(

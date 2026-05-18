@@ -39,6 +39,7 @@ class Executor:
     checkpoint: Optional[str] = None
     checkpoint_interval_sec: Optional[float] = None
     raise_on_failed_checkpoint: bool = True
+    autoexecute_raise_on_transient_error: bool = False
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         assert (self.task_queue is None and self.outcome_queue is None) or (
@@ -57,6 +58,7 @@ class Executor:
             checkpoint=self.checkpoint,
             checkpoint_interval_sec=self.checkpoint_interval_sec,
             raise_on_failed_checkpoint=self.raise_on_failed_checkpoint,
+            autoexecute_raise_on_transient_error=self.autoexecute_raise_on_transient_error,
         )
 
 
@@ -77,6 +79,7 @@ def execute(
     raise_on_failed_checkpoint: bool = True,
     write_progress_summary: bool = False,
     require_interrupt_confirm: bool = True,
+    autoexecute_raise_on_transient_error: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -122,6 +125,7 @@ def execute(
             assert outcome_queue is None
             task_queue_ = AutoexecuteTaskQueue(
                 debug=True,
+                raise_on_transient_error=autoexecute_raise_on_transient_error,
             )
             outcome_queue_ = task_queue_
 
@@ -162,7 +166,7 @@ def _execute_from_state(
     write_progress_summary: bool,
     require_interrupt_confirm: bool,
     num_procs: int = 8,
-    max_outcome_pull_num: int = 100,
+    max_outcome_pull_num: int = 1000,
 ):
     if do_dryrun_estimation:
         expected_operation_counts = dryrun.get_expected_operation_counts(state.get_ongoing_flows())

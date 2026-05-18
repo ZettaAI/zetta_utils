@@ -8,7 +8,9 @@ import requests
 import yaml
 from cloudfiles import CloudFile
 
-from zetta_utils import builder, mazepa
+from zetta_utils import builder, log, mazepa
+
+logger = log.get_logger("zetta_utils")
 from zetta_utils.geometry import BBox3D
 from zetta_utils.mazepa import dryrun
 
@@ -54,26 +56,34 @@ def _write_progress(progress_path: str, completed: set[int]) -> None:
     CloudFile(progress_path).put(payload.encode("utf-8"), content_type="application/yaml")
 
 
+def _mark_done_all(progress_paths: Sequence[str], all_z_values: Sequence[int]) -> None:
+    if dryrun.in_dryrun():
+        return
+    for progress_path in progress_paths:
+        for attempt in range(5):
+            try:
+                existing = _read_progress(progress_path)
+                merged = existing | set(all_z_values)
+                if merged != existing:
+                    _write_progress(progress_path, merged)
+                break
+            except (OSError, yaml.YAMLError, requests.exceptions.RequestException):
+                if attempt == 4:
+                    raise
+                time.sleep(1.0 * (2 ** attempt))
+
+
+@mazepa.flow_schema_cls
 @attrs.mutable
-class _MarkDoneAll:
+class _TrackedSectionFlowSchema:
+    compute_flow: mazepa.Flow
     progress_paths: list[str]
     all_z_values: list[int]
 
-    def __call__(self) -> None:
-        if dryrun.in_dryrun():
-            return
-        for progress_path in self.progress_paths:
-            for attempt in range(5):
-                try:
-                    existing = _read_progress(progress_path)
-                    merged = existing | set(self.all_z_values)
-                    if merged != existing:
-                        _write_progress(progress_path, merged)
-                    break
-                except (OSError, yaml.YAMLError, requests.exceptions.RequestException):
-                    if attempt == 4:
-                        raise
-                    time.sleep(1.0 * (2 ** attempt))
+    def flow(self):
+        yield [self.compute_flow]
+        yield mazepa.Dependency()
+        _mark_done_all(self.progress_paths, self.all_z_values)
 
 
 def _narrow_z_bbox(bbox: BBox3D, z_start: int, z_end: int, resolution: Sequence[float]) -> BBox3D:
@@ -108,7 +118,22 @@ def build_tracked_section_flow(
     all_z = range(z_start, z_end)
 
     if skip_existing and progress_paths:
-        completed: set[int] = set.intersection(*(_read_progress(p) for p in progress_paths))
+        per_layer: list[tuple[str, int, set[int]]] = []
+        for path, (layer_path, res_nm) in zip(progress_paths, unique_pairs):
+            done = _read_progress(path)
+            done_in_range = done & set(all_z)
+            per_layer.append((layer_path, res_nm, done_in_range))
+            logger.info(
+                f"build_tracked_section_flow skip_existing: "
+                f"{len(done_in_range)}/{len(all_z)} z already done for "
+                f"{layer_path}@{res_nm}nm"
+            )
+        completed: set[int] = set.intersection(*(d for _, _, d in per_layer))
+        logger.info(
+            f"build_tracked_section_flow skip_existing: "
+            f"{len(completed)}/{len(all_z)} z skipped (intersection across "
+            f"{len(progress_paths)} layer(s))"
+        )
     else:
         completed = set()
     remaining = [z for z in all_z if z not in completed]
@@ -125,10 +150,8 @@ def build_tracked_section_flow(
         all_z_values.extend(range(run_start, run_end))
 
     compute_all = mazepa.concurrent_flow(per_run_flows)
-
-    mark_done_all = _MarkDoneAll(
+    return _TrackedSectionFlowSchema(
+        compute_flow=compute_all,
         progress_paths=progress_paths,
         all_z_values=all_z_values,
-    )
-
-    return mazepa.sequential_flow([compute_all, mark_done_all])
+    )()

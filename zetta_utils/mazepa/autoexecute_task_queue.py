@@ -6,6 +6,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
+from zetta_utils.mazepa.transient_errors import TRANSIENT_ERROR_CONDITIONS
 from zetta_utils.mazepa.worker import process_task_message
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
@@ -22,6 +23,7 @@ class AutoexecuteTaskQueue(MessageQueue):
     tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
     handle_exceptions: bool = False
+    raise_on_transient_error: bool = False
 
     def push(self, payloads: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich
@@ -40,13 +42,23 @@ class AutoexecuteTaskQueue(MessageQueue):
         else:
             results: list[ReceivedMessage[OutcomeReport]] = []
             for task in self.tasks_todo[:max_num]:
-                results.append(execute_task(task, self.debug, self.handle_exceptions))
+                results.append(
+                    execute_task(
+                        task,
+                        self.debug,
+                        self.handle_exceptions,
+                        raise_on_transient_error=self.raise_on_transient_error,
+                    )
+                )
             self.tasks_todo = self.tasks_todo[max_num:]
             return results
 
 
 def execute_task(
-    task: Task, debug: bool, handle_exceptions: bool
+    task: Task,
+    debug: bool,
+    handle_exceptions: bool,
+    raise_on_transient_error: bool = False,
 ) -> ReceivedMessage[OutcomeReport]:
     # retries are counted for transient error handling
     curr_retry_count = 0
@@ -61,6 +73,16 @@ def execute_task(
             debug=debug,
             handle_exceptions=handle_exceptions,
         )
+        if (
+            raise_on_transient_error
+            and outcome.exception is not None
+            and any(cond.does_match(outcome.exception) for cond in TRANSIENT_ERROR_CONDITIONS)
+        ):
+            logger.warning(
+                f"Task {task.id_} transient error in inner autoexecute; "
+                f"raising to outer worker for SQS-level retry: {outcome.exception}"
+            )
+            raise outcome.exception
         if finished_processing:
             task.outcome = outcome
             break

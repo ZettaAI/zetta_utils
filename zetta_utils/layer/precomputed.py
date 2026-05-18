@@ -539,7 +539,7 @@ CANONICAL_PROCESSING_OUTER_CHUNK_SIZE_XY: dict[int, int] = {
 }
 
 
-def pyramid_chunk_size_xy(xy_resolution_nm: float) -> int:
+def backend_chunk_xy(xy_resolution_nm: float) -> int:
     """Chunk size (voxels XY) for a given XY resolution.
 
     Snaps `xy_resolution_nm` to the nearest key in `CANONICAL_CHUNK_SIZE_XY`

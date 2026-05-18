@@ -1,0 +1,11 @@
+# Packages pruned from exported requirements.*.txt files by
+# update_pinned_requirements.sh. One package name per line. Blank lines
+# and lines starting with '#' are ignored.
+cchardet        # cutie
+pyqtdarktheme   # cutie
+pyside6         # cutie
+gradio          # cutie
+av              # cutie
+easydict        # cutie
+netifaces       # cutie
+gdown           # cutie

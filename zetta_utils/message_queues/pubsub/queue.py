@@ -100,7 +100,7 @@ class PubSubPullQueue(PullMessageQueue[T]):
                     print("[DEBUG] Detected gzip compression")
                     data = gzip.decompress(raw_data).decode("utf-8")
                     payload = json.loads(data)
-                elif raw_data[:2] in (b'\x80\x04', b'\x80\x03'):  # pickle
+                elif raw_data[:1] == b'\x80':  # pickle (protocol 2+)
                     print("[DEBUG] Detected pickle format")
                     payload = pickle.loads(raw_data)
                     print(f"[DEBUG] Unpickled payload: {payload}")

@@ -15,6 +15,7 @@ from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.backend import (
     CVBackend,
     _clear_cv_cache,
+    _CVLRUCache,
     _get_cv_cached,
 )
 
@@ -645,3 +646,13 @@ def test_cv_delete(clear_caches_reset_mocks, mocker):
         # Delete and verify files are removed
         cvb.delete()
         assert not os.path.exists(os.path.join(tmp_dir, "info"))
+
+
+def test_cv_lru_cache_popitem_clears_internal_lru(mocker):
+    cache = _CVLRUCache(maxsize=1)
+    cvol_evicted = mocker.MagicMock()
+    cvol_kept = mocker.MagicMock()
+    cache["a"] = cvol_evicted
+    cache["b"] = cvol_kept
+    cvol_evicted.image.lru.clear.assert_called_once()
+    cvol_kept.image.lru.clear.assert_not_called()

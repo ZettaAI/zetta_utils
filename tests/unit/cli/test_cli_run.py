@@ -2,10 +2,12 @@
 import os
 import sys
 import time
+from io import StringIO
 from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
+from rich.console import Console
 
 from zetta_utils.cli.run.cli import COLUMNS, _print_infos, run_info_cli
 
@@ -60,6 +62,45 @@ def test_print_infos():
     # Check that table was created with correct columns
     assert len(table.columns) == len(COLUMNS._fields)
     # Rich tables store cell data internally, we can check the row count
+    assert len(table.rows) == 1
+
+
+def test_print_infos_handles_bad_timestamp():
+    """A row with an out-of-range timestamp shouldn't crash _print_infos."""
+    bad_ms = 1.78e12  # year 58203 when treated as seconds-since-epoch
+    infos = [
+        {
+            "zetta_user": "test_user",
+            "state": "running",
+            "timestamp": bad_ms,
+            "heartbeat": bad_ms,
+            "run_id": "test_run_bad_ts",
+        }
+    ]
+
+    table = _print_infos(infos)
+    assert len(table.rows) == 1
+
+    buf = StringIO()
+    Console(file=buf, width=200, force_terminal=False).print(table)
+    output = buf.getvalue()
+    assert "raw=" in output
+    assert "test_run_bad_ts" in output
+
+
+def test_print_infos_handles_non_numeric_timestamp():
+    """Non-numeric timestamp (e.g. ``None``) shouldn't crash _print_infos."""
+    infos = [
+        {
+            "zetta_user": "test_user",
+            "state": "running",
+            "timestamp": None,
+            "heartbeat": None,
+            "run_id": "test_run_none_ts",
+        }
+    ]
+
+    table = _print_infos(infos)
     assert len(table.rows) == 1
 
 

@@ -21,7 +21,12 @@ from tenacity import (
 from zetta_utils import builder
 from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
 
-MAX_KEYS_PER_REQUEST = 1000
+#: Chunk size for batched ``client.get_all`` calls in :meth:`FirestoreBackend.read`.
+#: Firestore caps an API request at 10 MiB (see
+#: https://cloud.google.com/firestore/quotas) and the SDK does not auto-split
+#: ``get_all`` calls, so callers must chunk large reference lists themselves.
+#: Lower this if per-row payload pushes a chunk's response past the limit.
+MAX_KEYS_PER_REQUEST = 500
 TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
 
 
@@ -97,12 +102,16 @@ class FirestoreBackend(DBBackend):
             if idx.row_keys[0] not in self:
                 raise KeyError(idx.row_keys[0])
         refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
-        snapshots = self.client.get_all(refs, field_paths=idx.col_keys)
+        # Chunk get_all into MAX_KEYS_PER_REQUEST batches so each RPC stays
+        # under Firestore's 10 MiB API request size limit; the SDK does not
+        # auto-split get_all.
         results_map = {}
-        for snapshot in snapshots:
-            if snapshot.exists:
-                results_map[snapshot.id] = snapshot.to_dict()
-                results_map[snapshot.id].pop("_id_nonunique", None)
+        for start in range(0, len(refs), MAX_KEYS_PER_REQUEST):
+            chunk = refs[start : start + MAX_KEYS_PER_REQUEST]
+            for snapshot in self.client.get_all(chunk, field_paths=idx.col_keys):
+                if snapshot.exists:
+                    results_map[snapshot.id] = snapshot.to_dict()
+                    results_map[snapshot.id].pop("_id_nonunique", None)
         results = []
         for rkey in idx.row_keys:
             results.append(results_map.get(rkey, {}))
@@ -234,12 +243,15 @@ class FirestoreBackend(DBBackend):
                     _q = collection_ref.where(filter=And(_filters))
             snapshots = list(_q.stream(**rpc_kwargs))
         else:
-            refs = collection_ref.list_documents()
-            snapshots = self.client.get_all(
-                refs,
-                field_paths=return_columns if len(return_columns) > 0 else None,
-                **rpc_kwargs,
-            )
+            # No filter: use Query.stream(), which the SDK paginates
+            # server-side automatically. The list_documents() +
+            # client.get_all() alternative sends a single BatchGetDocuments
+            # RPC that can blow past Firestore's 10 MiB API request size
+            # limit on large collections.
+            base_query: Any = collection_ref
+            if len(return_columns) > 0:
+                base_query = base_query.select(list(return_columns))
+            snapshots = list(base_query.stream(**rpc_kwargs))
         result = {}
         for snapshot in snapshots:
             result[snapshot.id] = snapshot.to_dict()

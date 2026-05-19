@@ -126,11 +126,14 @@ def configure_cronjob(
         # JSON merge-patch (RFC 7396) replaces list-typed fields wholesale.
         # Strategic merge-patch (the default) keys list merges by ``name``,
         # so containers removed from the new spec would survive the patch.
-        batch_v1_api.patch_namespaced_cron_job(
+        # The newer kubernetes-client API drops the ``_content_type`` kwarg;
+        # set the merge-patch content type via a dedicated ApiClient.
+        api_client = k8s_client.ApiClient(configuration=configuration)
+        api_client.set_default_header("Content-Type", "application/merge-patch+json")
+        k8s_client.BatchV1Api(api_client=api_client).patch_namespaced_cron_job(
             name=name,
             namespace=namespace,
             body=cronjob,
-            _content_type="application/merge-patch+json",
         )
     else:
         batch_v1_api.create_namespaced_cron_job(namespace=namespace, body=cronjob)

@@ -40,9 +40,22 @@ def _print_infos(infos: list) -> Table:
     for info in infos[::-1]:
         timestamp = info.get(COLUMNS._fields[2], 0)
         heartbeat = info.get(COLUMNS._fields[3], timestamp)
-        info[COLUMNS._fields[2]] = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        info[COLUMNS._fields[3]] = datetime.fromtimestamp(heartbeat).strftime("%Y-%m-%d %H:%M:%S")
-        info[COLUMNS._fields[5]] = int(heartbeat - timestamp)
+        try:
+            info[COLUMNS._fields[2]] = datetime.fromtimestamp(timestamp).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        except (ValueError, OSError, OverflowError, TypeError):
+            info[COLUMNS._fields[2]] = f"raw={timestamp!r}"
+        try:
+            info[COLUMNS._fields[3]] = datetime.fromtimestamp(heartbeat).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        except (ValueError, OSError, OverflowError, TypeError):
+            info[COLUMNS._fields[3]] = f"raw={heartbeat!r}"
+        try:
+            info[COLUMNS._fields[5]] = int(heartbeat - timestamp)
+        except TypeError:
+            info[COLUMNS._fields[5]] = "?"
         row = [str(info.get(key, None)) for key in COLUMNS._fields]
         table.add_row(*row)
     return table

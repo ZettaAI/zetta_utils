@@ -13,9 +13,6 @@ permissions:
   pages: write
   id-token: write
 
-  #env:
-  #  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
-
 jobs:
   docs:
     environment:
@@ -40,12 +37,13 @@ jobs:
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: 3.12
-          architecture: x64
-          cache: 'pip'
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Install libboost
         run: sudo apt-get update -y && sudo apt-get install -y libboost-dev
       - name: Free up disk space
@@ -60,6 +58,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python install_zutils.py --mode=all --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Build Docs
         run: cd ./docs; make html
         shell: bash -l {0}

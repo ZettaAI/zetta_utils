@@ -6,6 +6,13 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
   WANDB_MODE: offline
   ZETTA_USER: test
@@ -16,6 +23,7 @@ env:
 jobs:
   pytest:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -25,9 +33,10 @@ jobs:
           - "3.12"
           - "3.11"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -36,7 +45,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: 'false'
           submodules: true
@@ -62,7 +71,7 @@ jobs:
         shell: bash
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
         with:
           files: |
             **/*.py
@@ -78,7 +87,7 @@ jobs:
           conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: '1.18.4'
       - name: Install CUE
@@ -110,7 +119,7 @@ jobs:
         run: pytest ./tests/unit  # pyproject.toml defines the cov generation arguments
         shell: bash -l {0}
       - name: Send coverage report to codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         with:
           files: coverage.xml
@@ -119,18 +128,17 @@ jobs:
 
   pylint-isort:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
         python-version:
-          - "3.14"
-          - "3.13"
-          - "3.12"
           - "3.11"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -139,7 +147,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: 'false'
           submodules: true
@@ -165,7 +173,7 @@ jobs:
         shell: bash
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
         with:
           files: |
             **/*.py
@@ -181,7 +189,7 @@ jobs:
           conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: '1.18.4'
       - name: Install CUE
@@ -218,18 +226,18 @@ jobs:
         shell: bash -l {0}
   mypy:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
         python-version:
           - "3.14"
-          - "3.13"
-          - "3.12"
           - "3.11"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -238,7 +246,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: 'false'
           submodules: true
@@ -264,7 +272,7 @@ jobs:
         shell: bash
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
         with:
           files: |
             **/*.py
@@ -280,7 +288,7 @@ jobs:
           conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: '1.18.4'
       - name: Install CUE
@@ -314,15 +322,17 @@ jobs:
 
   test-docs:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
         python-version:
           - "3.12"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -331,7 +341,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: 'false'
           submodules: true
@@ -357,7 +367,7 @@ jobs:
         shell: bash
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
         with:
           files: |
             **/*.py
@@ -365,7 +375,7 @@ jobs:
             requirements*.txt
       - name: Get changed files
         id: changed-docs-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
         with:
           files: |
             **/*.rst

@@ -2,6 +2,14 @@ name: Integration Tests
 
 on:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
   WANDB_MODE: offline
   #SETUPTOOLS_ENABLE_FEATURES: legacy-editable
@@ -9,6 +17,7 @@ env:
 jobs:
   pytest:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -18,9 +27,10 @@ jobs:
           - "3.13"
           - "3.14"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -28,20 +38,21 @@ jobs:
           # owner is required, otherwise the creds will fail the checkout step
           owner: ${{ github.repository_owner }}
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: '1.18.4'
       - name: Install CUE
@@ -59,11 +70,12 @@ jobs:
           df -h
       - name: Install Python dependencies
         run: |
-          python install_zutils.py --mode=all --dockerfile --skip_apt
+          python install_zutils.py --mode=all --pcg --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Run pytest
         run: cd tests/integration && pytest --run-integration .
         shell: bash -l {0}
       - name: Send coverage report to codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.xml

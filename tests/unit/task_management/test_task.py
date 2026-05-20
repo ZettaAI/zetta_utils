@@ -872,6 +872,53 @@ def test_start_task_user_not_qualified_for_specific_type(
     assert task["active_user_id"] == ""
 
 
+def test_start_task_empty_segment_type_qualifications(
+    db_session, project_name, existing_user, existing_task, existing_task_type
+):
+    """User qualified for the task type but with empty segment qualifications is rejected."""
+    update_user(
+        project_name=project_name,
+        user_id="test_user",
+        data=UserUpdate(
+            qualified_task_types=["segmentation_proofread"],
+            qualified_segment_types=[],
+        ),
+        db_session=db_session,
+    )
+
+    with pytest.raises(UserValidationError, match="User not qualified for this segment type"):
+        start_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+
+def test_start_task_segment_type_mismatch(
+    db_session, project_name, existing_user, existing_task, existing_task_type
+):
+    """User qualified for a different segment type than the task's segment is rejected."""
+    # existing_task's segment has expected_segment_type="axon"
+    update_user(
+        project_name=project_name,
+        user_id="test_user",
+        data=UserUpdate(
+            qualified_task_types=["segmentation_proofread"],
+            qualified_segment_types=["dendrite"],
+        ),
+        db_session=db_session,
+    )
+
+    with pytest.raises(UserValidationError, match="User not qualified for this segment type"):
+        start_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+
 def test_release_task_nonexistent_task(db_session, project_name, existing_user):
     """Test that releasing a nonexistent task raises an error"""
     # Update user to have nonexistent active task

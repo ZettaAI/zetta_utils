@@ -43,6 +43,7 @@ def _get_mazepa_deployment(
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
     termination_grace_seconds: int = 300,
+    preload_modules: list[str] | None = None,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -59,6 +60,7 @@ def _get_mazepa_deployment(
         preferred_zones=preferred_zones,
         worker_type=worker_type,
         termination_grace_seconds=termination_grace_seconds,
+        preload_modules=preload_modules,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -108,6 +110,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
     termination_grace_seconds: int = 300,
+    preload_modules: list[str] | None = None,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -141,6 +144,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         preferred_zones=preferred_zones,
         worker_type=worker_type,
         termination_grace_seconds=termination_grace_seconds,
+        preload_modules=preload_modules,
     )
 
 

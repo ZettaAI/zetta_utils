@@ -14,7 +14,7 @@ try:  # pragma: no cover # logging only
 
     pynvml.nvmlInit()
     NVIDIA_GPU_AVAILABLE = True
-except (ImportError, Exception):  # pylint: disable=broad-except
+except (ImportError, Exception):  # pragma: no cover  # pylint: disable=broad-except
     NVIDIA_GPU_AVAILABLE = False
     pynvml = None
 
@@ -23,6 +23,35 @@ from zetta_utils.common.pprint import lrpad
 from zetta_utils.common.timer import RepeatTimer
 
 logger = log.get_logger("mazepa")
+
+
+# Both cgroup v1 and v2 use a very large integer to mean "unlimited"; anything
+# above this threshold is treated as unconstrained.
+_CGROUP_NO_LIMIT_THRESHOLD = 1 << 62
+
+
+def _read_int_file(path: str) -> int | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, PermissionError, ValueError):
+        return None
+
+
+def _read_cgroup_memory() -> tuple[int, int] | None:
+    """Return (used, limit) bytes from the process's cgroup, or None if unbounded."""
+    for current_path, limit_path in (
+        ("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.max"),  # v2
+        (
+            "/sys/fs/cgroup/memory/memory.usage_in_bytes",  # v1
+            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        ),
+    ):
+        current = _read_int_file(current_path)
+        limit = _read_int_file(limit_path)
+        if current is not None and limit is not None and 0 < limit < _CGROUP_NO_LIMIT_THRESHOLD:
+            return current, limit
+    return None
 
 
 @attrs.define
@@ -58,7 +87,22 @@ class ResourceMonitor:  # pragma: no cover # logging only
         return psutil.cpu_percent(interval=None)
 
     def get_memory_usage(self) -> Dict[str, Any]:
-        """Get current memory usage information."""
+        """Get current memory usage, scoped to the cgroup limit when set.
+
+        psutil.virtual_memory() reports the host's total, which under a
+        memory-limited cgroup (e.g. a k8s pod) makes the percentage scale
+        against the wrong denominator. Read the cgroup directly when
+        available; fall back to psutil otherwise.
+        """
+        cg = _read_cgroup_memory()
+        if cg is not None:
+            used, total = cg
+            return {
+                "total_gib": total / (1024 ** 3),
+                "used_gib": used / (1024 ** 3),
+                "available_gib": max(0, total - used) / (1024 ** 3),
+                "percent": 100.0 * used / total,
+            }
         mem = psutil.virtual_memory()
         return {
             "total_gib": mem.total / (1024 ** 3),

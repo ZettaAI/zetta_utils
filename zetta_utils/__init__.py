@@ -41,13 +41,16 @@ _patch_gcsfs_for_proxy()
 
 
 # Forkserver initialization
-LoadMode = Literal["all", "inference", "training", "try"]
+LoadMode = Literal["all", "inference", "training", "try", "none", "auto"]
 
 _PRELOAD_MODULES: dict[LoadMode, str] = {
     "all": "zetta_utils.builder.preload.all",
     "inference": "zetta_utils.builder.preload.inference",
     "training": "zetta_utils.builder.preload.training",
     "try": "zetta_utils.builder.preload.try_load",
+    "none": "zetta_utils.builder.preload.none",
+    # "auto" is special: preload list is computed from the spec, not a
+    # fixed module path. Handled in setup_environment().
 }
 
 
@@ -120,7 +123,73 @@ def _inherited_forkserver_daemon() -> bool:
     return _forkserver._forkserver_alive_fd is not None  # type: ignore[attr-defined]
 
 
-def setup_environment(load_mode: LoadMode = "all") -> None:
+def _spawn_forkserver_with_modules(modules: list[str]) -> None:  # pragma: no cover
+    """Spawn the daemon with an explicit preload list (not a fixed module path).
+
+    Only called from the auto-mode branch of setup_environment (itself
+    pragma'd because exercising it requires the parent's autouse conftest
+    fixture to NOT have already set up 'all', which conflicts with our
+    test infrastructure). End-to-end auto-mode coverage lives in the
+    subprocess test in tests/unit/builder/test_auto_mode.py.
+    """
+    # pylint: disable=import-outside-toplevel,protected-access
+    from multiprocessing.forkserver import _forkserver
+
+    multiprocessing.set_forkserver_preload(modules)
+    _forkserver.ensure_running()
+
+
+def _setup_auto(
+    preload_modules: list[str] | None,
+    cue_path: str | None,
+    forkserver_start: float,
+) -> bool:  # pragma: no cover
+    """Auto mode: compute preload set + spawn daemon. Returns False if it must
+    fall back to 'all' (neither cue_path nor preload_modules supplied)."""
+    # pylint: disable=import-outside-toplevel
+    if preload_modules is None and cue_path is None:
+        warnings.warn(
+            "setup_environment(load_mode='auto') requires cue_path or "
+            "preload_modules; falling back to 'all'.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return False
+
+    if preload_modules is None:
+        from zetta_utils.builder.preload import compute_preload_set
+        from zetta_utils.parsing import cue as _cue
+        from zetta_utils.parsing.spec_scan import extract_types
+
+        spec = _cue.load(cue_path)
+        scan_result = extract_types(spec)
+        if scan_result.has_dynamic_types:
+            logger.warning(
+                "auto preload: spec contains dynamic @type values; "
+                "lookup-miss fallback will handle them at build time."
+            )
+        preload_modules = compute_preload_set(scan_result.names())
+        logger.info(
+            f"auto preload (computed): {len(preload_modules)} module(s) "
+            f"({len(scan_result.types)} @type refs in spec)"
+        )
+    else:
+        logger.info(f"auto preload (explicit list): {len(preload_modules)} module(s)")
+
+    _spawn_forkserver_with_modules(preload_modules)
+    _wait_for_forkserver_ready()
+    logger.info(
+        f"Forkserver initialized in "
+        f"{time.perf_counter() - forkserver_start:.2f}s (mode: auto)"
+    )
+    return True
+
+
+def setup_environment(
+    load_mode: LoadMode = "all",
+    cue_path: str | None = None,
+    preload_modules: list[str] | None = None,
+) -> None:
     """
     Initialize the forkserver with preloaded modules and load modules in the
     main process.
@@ -133,7 +202,18 @@ def setup_environment(load_mode: LoadMode = "all") -> None:
     daemon init — the daemon is already preloaded.
 
     Args:
-        load_mode: Which modules to load ("all", "inference", "training", "try")
+        load_mode: Which modules to load. "all"/"inference"/"training"/"try"
+            preload fixed module bundles. "none" registers the always-eager
+            set and lazy-spawns the daemon on first fork. "auto" requires
+            either `cue_path` or `preload_modules`; in the cue_path case it
+            scans the CUE for @type literals and preloads exactly the
+            modules needed via the static registry index.
+        cue_path: Required when load_mode == "auto" unless preload_modules
+            is given. Ignored otherwise.
+        preload_modules: Explicit module list for the forkserver template.
+            When set with load_mode == "auto", skips the CUE scan and uses
+            this list directly. Used by remote workers that receive the
+            list via env var instead of re-parsing the spec.
     """
     if _inherited_forkserver_daemon():
         logger.info("Reusing inherited forkserver daemon; skipping init.")
@@ -153,10 +233,16 @@ def setup_environment(load_mode: LoadMode = "all") -> None:
             stacklevel=2,
         )
 
+    forkserver_start = time.perf_counter()
+
+    if load_mode == "auto":  # pragma: no cover
+        if _setup_auto(preload_modules, cue_path, forkserver_start):
+            return
+        load_mode = "all"
+
     # Spawn first (single-threaded parent → safe fork+exec); the daemon's
     # preload imports overlap with load_*_modules() below.
     logger.info(f"Configuring forkserver with preload module: {_PRELOAD_MODULES[load_mode]}")
-    forkserver_start = time.perf_counter()
     _spawn_forkserver_daemon(load_mode)
 
     if load_mode == "all":
@@ -165,6 +251,11 @@ def setup_environment(load_mode: LoadMode = "all") -> None:
         load_inference_modules()
     elif load_mode == "try":  # pragma: no cover
         try_load_train_inference()
+    elif load_mode == "none":  # pragma: no cover
+        # Skip eager loading; registry.get_matching_entry will lazy-import
+        # modules on demand via the static index. Daemon still spawns
+        # eagerly so worker latency is paid up front, not at first fork.
+        pass
     else:  # training  # pragma: no cover
         load_training_modules()
 

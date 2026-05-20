@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections import namedtuple
 from collections.abc import Sequence as AbcSequence
 from functools import partial
-from types import BuiltinMethodType
 from typing import Any, Callable, List, Literal, Mapping, Sequence
 
 import torch
@@ -12,30 +11,6 @@ import torch.nn.functional as F
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-
-NN_MANUAL = [
-    "Sequential",
-    "Upsample",
-]
-
-for k in dir(torch.nn):
-    if k not in NN_MANUAL and k[0].isupper():
-        builder.register(f"torch.nn.{k}")(getattr(torch.nn, k))
-
-for k in dir(torch.optim):
-    if k[0].isupper():
-        builder.register(f"torch.optim.{k}")(getattr(torch.optim, k))
-
-for k in dir(torch.optim.lr_scheduler):
-    attr = getattr(torch.optim.lr_scheduler, k)
-    if isinstance(attr, type) and issubclass(attr, torch.optim.lr_scheduler.LRScheduler):
-        builder.register(f"torch.optim.lr_scheduler.{k}")(attr)
-
-for module in [torch, torch.nn.functional, torch.linalg, torch.fft]:
-    for k in dir(module):
-        attr = getattr(module, k)
-        if isinstance(attr, BuiltinMethodType) and not k.startswith("_"):
-            builder.register(f"{module.__name__}.{k}")(attr)
 
 
 @builder.register("torch.nn.Sequential")

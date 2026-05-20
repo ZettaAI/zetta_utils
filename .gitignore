@@ -157,3 +157,6 @@ src/
 
 # files including backslash cause havoc with GKE image streaming
 *\\*
+
+# uv intermediate state — requirements.*.txt are the committed source of truth
+uv.lock

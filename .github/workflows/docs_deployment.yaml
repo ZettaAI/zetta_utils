@@ -4,13 +4,14 @@ on:
   push:
     branches: ["main"]
 
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 permissions:
   contents: read
   pages: write
   id-token: write
-
-  #env:
-  #  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
   docs:
@@ -18,9 +19,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Get token from Github App
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         id: app_token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -29,18 +31,19 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout from GitHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: 'false'
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: 3.11
-          architecture: x64
-          cache: 'pip'
+          python-version: 3.12
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Install libboost
         run: sudo apt-get update -y && sudo apt-get install -y libboost-dev
       - name: Free up disk space
@@ -55,6 +58,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python install_zutils.py --mode=all --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Build Docs
         run: cd ./docs; make html
         shell: bash -l {0}

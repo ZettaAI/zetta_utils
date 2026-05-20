@@ -44,6 +44,36 @@ FastAPI-based web service for zetta_utils task management and annotations.
 ## Authentication
 OAuth2 token verification with @zetta.ai email domain restriction.
 
+## Deployment
+
+Built and pushed via `build_web_api.py` at the repo root. Single script handles both CPU and GPU variants.
+
+### Tag format
+`<semver>-<yyyymmddNN>` (e.g., `1.0.46-2026052001`). Semver tracks logic changes; `yyyymmddNN` is a per-day build counter for infra-only rebuilds that don't bump semver.
+
+### Sources of truth
+- **`web_api/VERSION`** — current semver (committed to repo). Updated only after a successful push.
+- **Git tags** — `webapi_v<semver>-<yyyymmddNN>` (single tag covers both CPU and GPU). Used to compute the next build number for a given day. CPU and GPU always share the same version.
+
+### Modes (mutually exclusive)
+- `--bump {major,minor,patch}` — logic change. Computes new semver, builds, pushes, writes VERSION, auto-commits VERSION (unless `--no-commit`), creates git tag.
+- `--rebuild` — infra-only change. Reuses current VERSION, increments today's build number, no VERSION write, no commit, still creates git tag.
+- `--tag X` — explicit tag override (bypasses VERSION logic and skips git tagging). For ad-hoc local builds.
+
+### Side-effect flags
+- `--no-build` — skip docker build (push-only).
+- `--no-push` — skip docker push AND git tag (build-only). VERSION is not written in this mode, so `--bump --no-push` lets you preview a bump without side effects.
+- `--no-commit` — with `--bump`: write VERSION but don't auto-commit. User commits manually.
+- `--no-latest` — skip tagging and pushing the `:latest` image. By default, `--bump` and `--rebuild` retag the just-pushed image as `:latest` and push it (so `docker-compose` and other consumers of `:latest` pick it up automatically). `--tag X` mode never touches `:latest`.
+
+### Defaults
+`--variant both`, `--project zetta-research`, `--region us-east1`, `--repo zutils`.
+
+### Maintenance notes
+- VERSION is written **after** successful push, not at the start, to avoid stranding a half-bumped file on build/push failure.
+- `git fetch --tags` is run before computing the next build number so concurrent builds on different machines don't collide.
+- When the deploy workflow changes (new flags, tag format, defaults), update both `web_api/README.md` (user-facing) and this file.
+
 ## Usage
 ```bash
 # Get segment link with all endpoints

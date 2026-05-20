@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # CPU-only Dockerfile
-# For GPU support, use Dockerfile.gpu instead
+# For GPU support, use gpu.Dockerfile instead
 FROM python:3.12
 
 ENV PYTHONPATH=/opt/http
@@ -34,6 +34,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "cutie @ git+https://github.com/hkchengrex/Cutie.git"
+
+# ---- Install cue CLI (needed for builder.build with spec JSON files) --
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && curl -fsSL https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz \
+       | tar xz -C /usr/local/bin cue \
+    && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 COPY . /opt/http
 RUN zetta --help

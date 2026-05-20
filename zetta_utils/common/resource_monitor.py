@@ -14,7 +14,7 @@ try:  # pragma: no cover # logging only
 
     pynvml.nvmlInit()
     NVIDIA_GPU_AVAILABLE = True
-except (ImportError, Exception):  # pylint: disable=broad-except
+except (ImportError, Exception):  # pragma: no cover  # pylint: disable=broad-except
     NVIDIA_GPU_AVAILABLE = False
     pynvml = None
 

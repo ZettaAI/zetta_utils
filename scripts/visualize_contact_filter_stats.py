@@ -186,6 +186,16 @@ def main():
     df = read_all_stats(args.path)
     info = read_info(args.path)
 
+    for col in ("gt_dominant_ref_a", "gt_dominant_ref_b"):
+        if col in df.columns and pd.api.types.is_float_dtype(df[col]):
+            print(
+                f"WARNING: {col} has float dtype — this parquet was written before "
+                f"the UInt64 fix and GT IDs > 2^53 are rounded. Dominant-mode NGL "
+                f"links will point at nonexistent segment IDs. Regenerate the "
+                f"filter stats to fix.",
+                flush=True,
+            )
+
     # Map chunk coords to integer indices
     chunk_coords = df["chunk_coord"].values if "chunk_coord" in df.columns else None
     chunk_labels = []
@@ -1007,9 +1017,9 @@ function parseChunkExcludeInput(str) {
     str.split(",").forEach(function(part) {
         part = part.trim();
         if (!part) return;
-        var m = part.match(/^(\d+)\s*-\s*(\d+)$$/);
+        var m = part.match(/^(\\d+)\\s*-\\s*(\\d+)$$/);
         if (m) { for (var r = parseInt(m[1]); r <= parseInt(m[2]); r++) result[r] = true; }
-        else if (/^\d+$$/.test(part)) { result[parseInt(part)] = true; }
+        else if (/^\\d+$$/.test(part)) { result[parseInt(part)] = true; }
     });
     return result;
 }

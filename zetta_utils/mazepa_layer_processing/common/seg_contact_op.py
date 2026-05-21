@@ -1339,11 +1339,22 @@ class SegContactOp:
                 contact_stats["gt_refs_b"] = contact_stats["seg_b"].map(
                     lambda s: json.dumps(sorted(seg_to_ref_set.get(int(s), set())))
                 )
-                contact_stats["gt_dominant_ref_a"] = contact_stats["seg_a"].map(
-                    lambda s: next(iter(seg_to_ref_dom.get(int(s), set())), None)
+                # Build as pd.array(..., dtype="UInt64") directly. Going through
+                # .map() with `int | None` values would coerce the Series to float64,
+                # silently rounding IDs above 2^53 to the nearest representable double.
+                contact_stats["gt_dominant_ref_a"] = pd.array(
+                    [
+                        next(iter(seg_to_ref_dom.get(int(s), set())), None)
+                        for s in contact_stats["seg_a"]
+                    ],
+                    dtype="UInt64",
                 )
-                contact_stats["gt_dominant_ref_b"] = contact_stats["seg_b"].map(
-                    lambda s: next(iter(seg_to_ref_dom.get(int(s), set())), None)
+                contact_stats["gt_dominant_ref_b"] = pd.array(
+                    [
+                        next(iter(seg_to_ref_dom.get(int(s), set())), None)
+                        for s in contact_stats["seg_b"]
+                    ],
+                    dtype="UInt64",
                 )
 
                 # Join per-segment metrics for both seg_a and seg_b
@@ -1392,24 +1403,49 @@ class SegContactOp:
                 mesh_cv = CloudVolume(
                     segmentation_layer.backend.name, use_https=True, progress=False
                 )
-                mesh_exists_results = mesh_cv.mesh.exists(seg_ids_list)
-                has_mesh = {
-                    seg_id
-                    for seg_id, result in zip(seg_ids_list, mesh_exists_results)
-                    if result is not None
-                }
-                contact_stats["has_mesh_a"] = contact_stats["seg_a"].astype(int).isin(has_mesh)
-                contact_stats["has_mesh_b"] = contact_stats["seg_b"].astype(int).isin(has_mesh)
-                contact_stats["both_meshes"] = (
-                    contact_stats["has_mesh_a"] & contact_stats["has_mesh_b"]
-                )
-                n_both = contact_stats["both_meshes"].sum()
-                print(
-                    f"[{coord_str}] Mesh check: {len(has_mesh)}/{len(seg_ids_list)} "
-                    f"segments have meshes, {n_both}/{len(contact_stats)} pairs have both "
-                    f"({time.time() - t_mesh:.1f}s)",
-                    flush=True,
-                )
+                if mesh_cv.info.get("mesh") is None:
+                    # No mesh field in the layer's info → no meshes to check.
+                    # Skip the call (saves a GCS round-trip) and record has_mesh_* = False.
+                    contact_stats["has_mesh_a"] = False
+                    contact_stats["has_mesh_b"] = False
+                    contact_stats["both_meshes"] = False
+                    print(
+                        f"[{coord_str}] Mesh check: segmentation layer has no mesh field; "
+                        f"skipping (has_mesh_* = False) "
+                        f"({time.time() - t_mesh:.1f}s)",
+                        flush=True,
+                    )
+                else:
+                    mesh_exists_results = mesh_cv.mesh.exists(seg_ids_list)
+                    # CloudVolume mesh sources return either:
+                    #   - list [manifest_or_None] aligned with input (sharded multi-LOD)
+                    #   - dict {str(id): manifest_or_None}        (other source classes)
+                    # Handle both. A bare-zip implementation silently misbehaved on dict
+                    # returns (iterates keys → all non-None → every seg marked has-mesh).
+                    if isinstance(mesh_exists_results, dict):
+                        has_mesh = {
+                            int(seg_id)
+                            for seg_id, result in mesh_exists_results.items()
+                            if result is not None
+                        }
+                    else:
+                        has_mesh = {
+                            seg_id
+                            for seg_id, result in zip(seg_ids_list, mesh_exists_results)
+                            if result is not None
+                        }
+                    contact_stats["has_mesh_a"] = contact_stats["seg_a"].astype(int).isin(has_mesh)
+                    contact_stats["has_mesh_b"] = contact_stats["seg_b"].astype(int).isin(has_mesh)
+                    contact_stats["both_meshes"] = (
+                        contact_stats["has_mesh_a"] & contact_stats["has_mesh_b"]
+                    )
+                    n_both = contact_stats["both_meshes"].sum()
+                    print(
+                        f"[{coord_str}] Mesh check: {len(has_mesh)}/{len(seg_ids_list)} "
+                        f"segments have meshes, {n_both}/{len(contact_stats)} pairs have both "
+                        f"({time.time() - t_mesh:.1f}s)",
+                        flush=True,
+                    )
 
                 contact_stats["chunk_coord"] = coord_str
                 contact_stats["has_nucleus"] = chunk_has_nucleus
@@ -1616,6 +1652,11 @@ class SegContactOp:
             ]
         )
         mesh_cv = CloudVolume(segmentation_layer.backend.name, use_https=True, progress=False)
+        assert mesh_cv.info.get("mesh") is not None, (
+            f"Segmentation layer {segmentation_layer.backend.name} has no 'mesh' field in "
+            f"info. Contact generation requires meshes (run meshing first via igneous / "
+            f"portal), or use collect_filter_stats_only=True."
+        )
         mesh_cache = MeshLRUCache(
             cv=mesh_cv,
             max_bytes=self.mesh_cache_bytes,
@@ -1756,6 +1797,10 @@ class AddPointcloudsOp:
         # Download meshes
         t0 = time.time()
         mesh_cv = CloudVolume(segmentation_layer.backend.name, use_https=True, progress=False)
+        assert mesh_cv.info.get("mesh") is not None, (
+            f"Segmentation layer {segmentation_layer.backend.name} has no 'mesh' field in "
+            f"info. Pointcloud generation requires meshes."
+        )
         meshes = _download_meshes(mesh_cv, list(segs_needing_mesh))
         print(
             f"[{coord_str}] Download meshes: {time.time() - t0:.1f}s ({len(meshes)} meshes)",

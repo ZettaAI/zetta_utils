@@ -280,9 +280,20 @@ def _lightning_train_local(
     full_state_ckpt_path: str = "last",
 ):
     logger.info("Starting training...")
-    if "CURRENT_BUILD_SPEC" in os.environ:
+    # Pop CURRENT_BUILD_SPEC before consuming it: the builder ctx mngr in
+    # building.py sets this to the full JSON-serialized spec, which can reach
+    # several MB for large training configs. If left in env, any subsequent
+    # subprocess spawned via execve (notably wandb-core, but also DDP workers
+    # and DataLoader workers under start_method=spawn) inherits the bloated
+    # env and crashes with OSError[E2BIG] "Argument list too long". Nothing
+    # downstream reads this var; trainer.log_config persists the spec to wandb
+    # config, and ZETTA_RUN_SPEC_PATH still points to the spec file on disk
+    # for any code that needs to recover it. The outer ctx mngr restores the
+    # pre-build env on exit, so this pop is scoped to the training run.
+    spec_json = os.environ.pop("CURRENT_BUILD_SPEC", None)
+    if spec_json is not None:
         if hasattr(trainer, "log_config"):
-            trainer.log_config(json.loads(os.environ["CURRENT_BUILD_SPEC"]))
+            trainer.log_config(json.loads(spec_json))
         else:
             logger.warning("Incompatible custom trainer used: Unable to save configuration.")
     else:

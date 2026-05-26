@@ -1238,11 +1238,11 @@ tensorboard==2.20.0
     # via cutie
 tensorboard-data-server==0.7.2
     # via tensorboard
-tensorrt-cu13==10.16.1.11
+tensorrt-cu13==10.16.1.11 ; python_full_version < '3.14'
     # via zetta-utils
-tensorrt-cu13-bindings==10.16.1.11
+tensorrt-cu13-bindings==10.16.1.11 ; python_full_version < '3.14'
     # via tensorrt-cu13
-tensorrt-cu13-libs==10.16.1.11
+tensorrt-cu13-libs==10.16.1.11 ; python_full_version < '3.14'
     # via tensorrt-cu13
 tensorstore==0.1.79
     # via zetta-utils

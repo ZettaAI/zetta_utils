@@ -206,7 +206,7 @@ calcada = [
   "cloud-sql-python-connector[pg8000] >= 1.0.0",
 ]
 gpu = [
-  "tensorrt-cu13 >= 10.13",
+  "tensorrt-cu13 >= 10.13 ; python_version < '3.14'",  # no wheels for 3.14, yet
 ]
 skeletonization = [
   "zetta_utils[cloudvol, databackends, mazepa]",

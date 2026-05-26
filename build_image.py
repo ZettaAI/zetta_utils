@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 
-BUILD_COMMAND_TMPL = "docker build --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:py{PYTHON_VERSION}_{TAG_SUFFIX} --build-arg PYTHON_VERSION={PYTHON_VERSION} -f docker/Dockerfile.{MODE} ."
+BUILD_COMMAND_TMPL = "docker build --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:py{PYTHON_VERSION}_{TAG_SUFFIX} --build-arg PYTHON_VERSION={PYTHON_VERSION} --build-arg INSTALL_PCG={INSTALL_PCG} -f docker/Dockerfile.all ."
 PUSH_COMMAND_TMPL = "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:py{PYTHON_VERSION}_{TAG_SUFFIX}"
 
 
@@ -30,7 +30,7 @@ def main():
         "-p",
         type=str,
         default="3.12",
-        choices=["3.12", "3.11", "3.10"],
+        choices=["3.14", "3.13", "3.12", "3.11"],
         help="Which python version to use for the image.",
     )
     parser.add_argument(
@@ -40,9 +40,11 @@ def main():
 
     args = parser.parse_args()
 
+    install_pcg = "1" if args.mode == "all_pcg" else "0"
+
     build_command = BUILD_COMMAND_TMPL
     build_command = build_command.replace("{TAG_SUFFIX}", args.tag_suffix)
-    build_command = build_command.replace("{MODE}", args.mode)
+    build_command = build_command.replace("{INSTALL_PCG}", install_pcg)
     build_command = build_command.replace("{PYTHON_VERSION}", args.python.replace(".", ""))
     build_command = build_command.replace("{PROJECT}", args.project)
     build_command = build_command.replace("{REGION}", args.region)

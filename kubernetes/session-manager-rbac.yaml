@@ -1,0 +1,36 @@
+# ServiceAccount + Role + RoleBinding for the session-manager. Grants BatchV1Api
+# access to jobs (full CRUD + list/watch) and CoreV1Api access to services
+# (get, list, create, delete), scoped to the sessions namespace. No ClusterRole,
+# no cross-namespace access.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: session-manager-sa
+  namespace: sessions
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: session-manager
+  namespace: sessions
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: session-manager
+  namespace: sessions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: session-manager
+subjects:
+- kind: ServiceAccount
+  name: session-manager-sa
+  namespace: sessions

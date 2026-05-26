@@ -398,6 +398,69 @@ def get_mazepa_pod_spec(
     )
 
 
+def create_namespaced_pod(
+    *,
+    namespace: str,
+    body: Mapping,
+    k8s_core_v1_api: k8s_client.CoreV1Api | None = None,
+) -> k8s_client.V1Pod:
+    """Create a Pod via ``CoreV1Api``.
+
+    Mirrors the call shape of ``BatchV1Api.create_namespaced_job`` — keyword-only
+    arguments and an optional explicit API client for testability.
+
+    :param namespace: namespace to create the Pod in.
+    :param body: a dict matching ``V1Pod`` (must include ``metadata.name``,
+        ``metadata.namespace``, ``spec.containers``, etc.). The caller renders
+        this from a Pod template.
+    :param k8s_core_v1_api: optional override; tests inject a mock.
+    :return: the created ``V1Pod``.
+    """
+    api = k8s_core_v1_api or k8s_client.CoreV1Api()
+    return api.create_namespaced_pod(namespace=namespace, body=body)
+
+
+def read_namespaced_pod_status(
+    *,
+    name: str,
+    namespace: str,
+    k8s_core_v1_api: k8s_client.CoreV1Api | None = None,
+) -> k8s_client.V1Pod:
+    """Read a Pod's status via ``CoreV1Api``.
+
+    :param name: Pod name.
+    :param namespace: Pod namespace.
+    :param k8s_core_v1_api: optional override; tests inject a mock.
+    :return: the ``V1Pod`` carrying its status subresource.
+    """
+    api = k8s_core_v1_api or k8s_client.CoreV1Api()
+    return api.read_namespaced_pod_status(name=name, namespace=namespace)
+
+
+def delete_namespaced_pod(
+    *,
+    name: str,
+    namespace: str,
+    k8s_core_v1_api: k8s_client.CoreV1Api | None = None,
+) -> None:
+    """Best-effort delete of a Pod via ``CoreV1Api``.
+
+    Swallows ``ApiException`` with status 404 or 410 (the Pod is already gone),
+    re-raising any other status.
+
+    :param name: Pod name.
+    :param namespace: Pod namespace.
+    :param k8s_core_v1_api: optional override; tests inject a mock.
+    """
+    api = k8s_core_v1_api or k8s_client.CoreV1Api()
+    try:
+        api.delete_namespaced_pod(name=name, namespace=namespace)
+    except ApiException as e:
+        if e.status in (404, 410):
+            return
+        raise
+
+
 def _wait_for_pod_start(
     pod_name: str,
     namespace: str,

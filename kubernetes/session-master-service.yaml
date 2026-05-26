@@ -1,0 +1,27 @@
+# Per-session master Service template. The session-manager renders this per
+# session, substituting ${SESSION_ID} and ${MASTER_JOB_UID} before applying.
+# ownerReferences target the master Job so K8s cascade-GC reaps this Service
+# when the Job is deleted or TTL-reaped after the master exits.
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-master-${SESSION_ID}
+  namespace: sessions
+  labels:
+    app: session-master
+    sessionId: ${SESSION_ID}
+  ownerReferences:
+  - apiVersion: batch/v1
+    kind: Job
+    name: session-master-${SESSION_ID}
+    uid: ${MASTER_JOB_UID}
+    controller: true
+    blockOwnerDeletion: true
+spec:
+  type: ClusterIP
+  selector:
+    app: session-master
+    sessionId: ${SESSION_ID}
+  ports:
+  - port: 80
+    targetPort: 80

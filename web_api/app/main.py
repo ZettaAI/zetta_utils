@@ -1,8 +1,9 @@
 # pylint: disable=all # type: ignore
 import os
 import sys
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google.auth.transport import requests
 
@@ -12,15 +13,24 @@ from google.oauth2 import id_token
 
 from .alignment import api as alignment_api
 from .annotations import api as annotations_api
+from .boot_self_check import assert_no_serviceaccount_token
 from .collections import api as collections_api
 from .layer_groups import api as layer_groups_api
 from .layers import api as layers_api
 from .painting import api as painting_api
 from .precomputed_annotations import api as precomputed_annotations_api
+from .run_spec import api as run_spec_api
 from .segmentation import api as segmentation_api
 from .tasks import api as tasks_api
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    assert_no_serviceaccount_token()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,26 +47,47 @@ app.mount("/layer_groups", layer_groups_api)
 app.mount("/layers", layers_api)
 app.mount("/painting", painting_api)
 app.mount("/precomputed", precomputed_annotations_api)
+app.mount("/run_spec", run_spec_api)
 app.mount("/segmentation", segmentation_api)
 app.mount("/tasks", tasks_api)
+
+
+def verify_zetta_ai_id_token(authorization: str) -> dict:
+    """Verify a Bearer Google ID token and enforce the ``@zetta.ai`` domain.
+
+    Splits the Bearer token out of the ``authorization`` header value, verifies
+    it against ``OAUTH_CLIENT_ID``, and asserts the decoded email ends in
+    ``@zetta.ai``. Raises ``HTTPException(401)`` on every failure, otherwise
+    returns the decoded token info dict.
+
+    :param authorization: the raw ``Authorization`` header value.
+    :return: the decoded ID-token info.
+    """
+    try:
+        token = authorization.split()[-1]
+    except (AttributeError, IndexError):
+        raise HTTPException(status_code=401, detail="Missing auth token.")
+
+    client_id = os.environ["OAUTH_CLIENT_ID"]
+    try:
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    if not idinfo["email"].endswith("@zetta.ai"):
+        raise HTTPException(status_code=401, detail="User not authorized.")
+    return idinfo
 
 
 @app.middleware("http")
 async def check_authorized_user(request: Request, call_next):
     if request.method != "OPTIONS" and request.url.path != "/healthz":
-        try:
-            token = request.headers["authorization"].split()[-1]
-        except (KeyError, IndexError):
+        if "authorization" not in request.headers:
             return Response(content="Missing auth token.", status_code=401)
-
-        client_id = os.environ["OAUTH_CLIENT_ID"]
         try:
-            idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            return Response(content=str(exc), status_code=401)
-
-        if not idinfo["email"].endswith("@zetta.ai"):
-            return Response(content="User not authorized.", status_code=401)
+            verify_zetta_ai_id_token(request.headers["authorization"])
+        except HTTPException as exc:
+            return Response(content=exc.detail, status_code=exc.status_code)
         #  user = f"user:{idinfo['email']}"
         # client = iap_v1.IdentityAwareProxyAdminServiceClient()
 

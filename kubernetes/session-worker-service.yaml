@@ -1,0 +1,28 @@
+# Worker Service template. The session-master renders this at boot, substituting
+# ${SESSION_ID}, ${MASTER_POD_NAME}, and ${MASTER_POD_UID}, then calls
+# CoreV1Api().create_namespaced_service(...). Provides stable cluster DNS
+# session-worker-<sessionId>.sessions.svc.cluster.local. ownerReferences target
+# the master Pod so K8s cascade-GC reaps the Service when the master is gone.
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-worker-${SESSION_ID}
+  namespace: sessions
+  labels:
+    app: session-worker
+    sessionId: ${SESSION_ID}
+  ownerReferences:
+  - apiVersion: v1
+    kind: Pod
+    name: ${MASTER_POD_NAME}
+    uid: ${MASTER_POD_UID}
+    controller: true
+    blockOwnerDeletion: true
+spec:
+  type: ClusterIP
+  selector:
+    app: session-worker
+    sessionId: ${SESSION_ID}
+  ports:
+  - port: 80
+    targetPort: 80

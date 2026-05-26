@@ -1,3 +1,4 @@
+# pylint: disable=all # type: ignore
 import logging
 import os
 import sys

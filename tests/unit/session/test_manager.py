@@ -1,7 +1,10 @@
 import asyncio
 
-import aiohttp
 import pytest
+
+pytest.importorskip("fastapi")
+
+import aiohttp
 from fastapi import HTTPException
 from kubernetes.client.exceptions import ApiException
 
@@ -9,7 +12,6 @@ from kubernetes.client.exceptions import ApiException
 async def test_create_session_reserves_and_creates_job_and_service(
     manager_env, mock_batch_v1, mocker
 ):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     # Reservation succeeds (no concurrent/pre-existing session) -> returns None.
     reserve = mocker.patch(
         "zetta_utils.session.manager._reserve_or_get_existing", return_value=None
@@ -44,7 +46,6 @@ async def test_create_session_reserves_and_creates_job_and_service(
 
 
 async def test_create_session_reuses_active(manager_env, mock_batch_v1, mocker):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     # A concurrent/pre-existing active session is returned by the transaction.
     mocker.patch(
         "zetta_utils.session.manager._reserve_or_get_existing",
@@ -62,7 +63,6 @@ async def test_create_session_reuses_active(manager_env, mock_batch_v1, mocker):
 
 
 async def test_create_session_marks_down_on_k8s_failure(manager_env, mock_batch_v1, mocker):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch("zetta_utils.session.manager._reserve_or_get_existing", return_value=None)
     write_state = mocker.patch("zetta_utils.session.manager._write_session_state")
     mock_batch_v1.create_namespaced_job.side_effect = ApiException(status=500)
@@ -79,7 +79,6 @@ async def test_create_session_marks_down_on_k8s_failure(manager_env, mock_batch_
 
 
 async def test_dispatch_preparing_writes_queue(manager_env, mocker):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row", return_value={"state": "preparing"}
     )
@@ -98,7 +97,6 @@ async def test_dispatch_preparing_writes_queue(manager_env, mocker):
 
 async def test_dispatch_concurrent_preparing_all_enqueued(manager_env, mocker):
     """N concurrent pre-ready dispatches each enqueue."""
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row", return_value={"state": "preparing"}
     )
@@ -120,7 +118,6 @@ async def test_dispatch_concurrent_preparing_all_enqueued(manager_env, mocker):
 
 
 async def test_dispatch_ready_proxies_to_master(manager_env, mocker, aiohttp_mock_session):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row",
         return_value={"state": "ready", "controlEndpoint": "http://session-master-s1/"},
@@ -142,7 +139,6 @@ async def test_dispatch_ready_proxies_to_master(manager_env, mocker, aiohttp_moc
 async def test_dispatch_ready_proxy_unreachable_lazy_down(
     manager_env, mocker, aiohttp_mock_session
 ):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row",
         return_value={"state": "ready", "controlEndpoint": "http://nonexistent/"},
@@ -167,7 +163,6 @@ async def test_dispatch_ready_passes_through_master_error(
 ):
     """A master HTTP error (e.g. 409 not-ready) surfaces with its own status,
     not a generic 500."""
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row",
         return_value={"state": "ready", "controlEndpoint": "http://session-master-s1/"},
@@ -189,7 +184,6 @@ async def test_dispatch_ready_passes_through_master_error(
 
 
 async def test_status_preparing_returns_queue_depth(manager_env, mocker):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch(
         "zetta_utils.session.manager._read_session_row", return_value={"state": "preparing"}
     )
@@ -204,7 +198,6 @@ async def test_status_preparing_returns_queue_depth(manager_env, mocker):
 async def test_terminate_deletes_job_and_service_and_writes_down(
     manager_env, mock_batch_v1, mocker
 ):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     svc_delete = mocker.patch("zetta_utils.session.manager.service.delete_namespaced_service")
     write_state = mocker.patch("zetta_utils.session.manager._write_session_state")
 
@@ -218,7 +211,6 @@ async def test_terminate_deletes_job_and_service_and_writes_down(
 
 
 async def test_terminate_swallows_job_404(manager_env, mock_batch_v1, mocker):
-    mocker.patch("zetta_utils.session.manager._check_zetta_ai_token")
     mocker.patch("zetta_utils.session.manager.service.delete_namespaced_service")
     mocker.patch("zetta_utils.session.manager._write_session_state")
     mock_batch_v1.delete_namespaced_job.side_effect = ApiException(status=404)

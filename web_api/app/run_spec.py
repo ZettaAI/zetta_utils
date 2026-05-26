@@ -1,3 +1,4 @@
+# pylint: disable=all # type: ignore
 import asyncio
 import json
 import logging

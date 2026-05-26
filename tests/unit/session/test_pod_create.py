@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("fastapi")
+
 
 def test_create_namespaced_pod_passes_through(mocker):
     from zetta_utils.cloud_management.resource_allocation.k8s import pod

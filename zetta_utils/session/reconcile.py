@@ -154,7 +154,7 @@ def _query_non_down_sessions():
 def _write_session_state(session_id: str, state: str, *, reason: str) -> None:
     """Merge-write to sessions/<id>; auto-stamps terminatedAt on 'down'
     (same convention as manager/master)."""
-    payload = {"state": state}
+    payload: dict[str, object] = {"state": state}
     if state == "down":
         payload["terminatedAt"] = firestore.SERVER_TIMESTAMP
         payload["terminationReason"] = reason

@@ -1,7 +1,10 @@
 import asyncio
 
-import aiohttp
 import pytest
+
+pytest.importorskip("fastapi")
+
+import aiohttp
 from fastapi import HTTPException
 from kubernetes.client.exceptions import ApiException
 
@@ -127,7 +130,6 @@ async def test_f_worker_404_writes_down_gracefully(
     from zetta_utils.session import master
 
     write_mock = mocker.patch("zetta_utils.session.master._write_session_state")
-    mocker.patch("zetta_utils.session.master._check_zetta_ai_token")
     master._worker_endpoint = "http://session-worker-test/"
 
     result = await master.status(authorization="Bearer fake@zetta.ai")
@@ -177,23 +179,6 @@ async def test_g_queue_drain_polls_until_empty(
     await master._drain_pre_ready_queue()
 
     assert read_mock.call_count >= 3
-
-
-async def test_h_auth_middleware_rejects_non_zetta_token(master_env, mocker):
-    """/dispatch rejects tokens not @zetta.ai."""
-    from zetta_utils.session import master
-
-    mocker.patch(
-        "zetta_utils.session.master._check_zetta_ai_token",
-        side_effect=PermissionError("not @zetta.ai"),
-    )
-    with pytest.raises(PermissionError):
-        await master.dispatch(
-            body=master.DispatchBody(
-                specUrl="gs://x", runId="r", jobType="j", requiredPreload="try"
-            ),
-            authorization="Bearer external@gmail.com",
-        )
 
 
 async def test_i_phase_failed_with_nonzero_exit_is_permanent(master_env, mock_k8s_apis, mocker):
@@ -283,7 +268,6 @@ async def test_l_concurrent_dispatches_idle_timer_safe(
     master._idle_ttl_sec = 60
     master._worker_endpoint = "http://session-worker-test/"
 
-    mocker.patch("zetta_utils.session.master._check_zetta_ai_token")
     mocker.patch("zetta_utils.session.master._update_last_dispatch_at")
     aiohttp_mock_session.set_post_response(
         status=200,

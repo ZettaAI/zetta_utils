@@ -4,6 +4,14 @@ import pkgutil
 
 import zetta_utils as zu
 
+# Session service entrypoints require fastapi/hypercorn and a runtime
+# environment (SESSION_ID etc.); they run in their own container image, like
+# the web_api service, so they are not import-walked here.
+_IMPORT_WALK_SKIP = {
+    "zetta_utils.session.master",
+    "zetta_utils.session.manager",
+}
+
 
 def test_load_all_modules():
     zu.load_all_modules()  # pylint: disable=protected-access
@@ -40,6 +48,8 @@ def test_every_submodule_imports_cleanly(monkeypatch):
 
     failures: list[tuple[str, str]] = []
     for name in _iter_all_modules(zu.__name__):
+        if name in _IMPORT_WALK_SKIP:
+            continue
         try:
             importlib.import_module(name)
         except Exception as e:  # pylint: disable=broad-except

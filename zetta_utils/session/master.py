@@ -6,9 +6,6 @@ Lifecycle:
              poll /healthz, drain pre-ready queue, transition state=ready.
   Steady   — aiohttp.web app exposing /dispatch, /status, /terminate.
              Proxies to worker. Owns the cancellable idle TTL timer.
-  Recycle  — on worker connection-refused: if last response was nearRecycle,
-             recreate worker Pod; otherwise check Pod phase and apply the
-             failure-mode disambiguation predicate.
   Terminate — on SIGTERM (Job deletion) or idle-fire: delete worker, write
               state=down, exit cleanly.
 
@@ -73,16 +70,11 @@ WORKER_HEALTHZ_REFUSAL_THRESHOLD = 5
 #
 # Concurrency invariant: no asyncio.Lock is required around these globals.
 # The worker enforces single-flight via a Semaphore(1) around its /run_spec/
-# handler, so master can only have ONE response in flight at a time. The
-# nearRecycle flag is monotonic in the worker (it flips toward True as the
-# dispatch count approaches the per-pod cap) so even under hypothetical
-# concurrent updates the value strictly progresses toward True. _idle_timer_task
-# is touched only from dispatch handlers (each serialised behind the worker
-# semaphore anyway) and from the timer body itself; no race.
+# handler, so master can only have ONE response in flight at a time.
+# _idle_timer_task is touched only from dispatch handlers (each serialised
+# behind the worker semaphore anyway) and from the timer body itself; no race.
 _idle_timer_task: asyncio.Task | None = None
 _idle_ttl_sec: float = 3600
-_last_response_near_recycle: bool = False
-_active_dispatch_count_on_worker: int = 0
 _worker_endpoint: str = ""
 _shutdown_started: bool = False
 
@@ -273,7 +265,7 @@ async def _wait_for_worker_healthz() -> None:
                 if refusal_count >= WORKER_HEALTHZ_REFUSAL_THRESHOLD:
                     verdict = _classify_worker_failure()
                     if verdict == "permanent":
-                        await _terminate_session("worker_boot_self_check_failed")
+                        await _terminate_session("worker_permanent_failure")
                     # else: continue polling within the 60s budget
             await asyncio.sleep(WORKER_HEALTHZ_POLL_INTERVAL_S)
 
@@ -310,7 +302,7 @@ def _classify_worker_failure() -> Literal["permanent", "transient"]:
                 exit_code = term.exit_code
                 break
         log.error(
-            "sessions.worker.self_check_failed",
+            "sessions.worker.permanent_failure",
             extra={"sessionId": session_id, "exitCode": exit_code},
         )
         return "permanent"
@@ -421,7 +413,7 @@ def _build_app() -> web.Application:
     return app
 
 
-# ---- Forwarding to worker (handles recycle path) -----------------------
+# ---- Forwarding to worker -----------------------------------------------
 
 
 async def _forward_dispatch_to_worker(
@@ -429,9 +421,6 @@ async def _forward_dispatch_to_worker(
     *,
     user_token: str | None = None,
 ) -> dict:
-    global _last_response_near_recycle  # pylint: disable=global-statement
-    global _active_dispatch_count_on_worker  # pylint: disable=global-statement
-
     headers = {}
     token = user_token
     if token:
@@ -459,8 +448,6 @@ async def _forward_dispatch_to_worker(
             ) as response:
                 response.raise_for_status()
                 body = await response.json()
-        _last_response_near_recycle = bool(body.get("nearRecycle", False))
-        _active_dispatch_count_on_worker = int(body.get("dispatchCount", 0))
         _update_last_dispatch_at()
         return body
     except aiohttp.ClientResponseError as e:
@@ -476,48 +463,11 @@ async def _forward_dispatch_to_worker(
         dispatch_doc = {**dispatch_doc, "_master_retry_attempted": True}
         return await _forward_dispatch_to_worker(dispatch_doc, user_token=user_token)
     except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
-        # Worker is unreachable. Decide: graceful recycle or terminal failure.
-        if _last_response_near_recycle:
-            log.info(
-                "sessions.worker.recycled",
-                extra={
-                    "sessionId": _session_id(),
-                    "dispatchCount": _active_dispatch_count_on_worker,
-                },
-            )
-            await _recreate_worker_pod()
-            return await _forward_dispatch_to_worker(dispatch_doc, user_token=user_token)
-        # Not a graceful recycle — classify and either retry or terminate.
+        # Worker is unreachable. Classify and either keep going or terminate.
         verdict = _classify_worker_failure()
         if verdict == "permanent":
-            await _terminate_session("worker_boot_self_check_failed")
+            await _terminate_session("worker_permanent_failure")
         raise web.HTTPBadGateway(reason="worker unreachable") from e
-
-
-async def _recreate_worker_pod() -> None:
-    """Delete the worn-out worker Pod and create a fresh one.
-
-    The new Pod uses the same template; ``ownerReferences`` continue to point
-    at this master Pod.
-    """
-    session_id = _session_id()
-    namespace = _workload_namespace()
-    pod.delete_namespaced_pod(
-        name=f"session-worker-{session_id}",
-        namespace=namespace,
-    )
-    # Wait briefly for K8s to release the name.
-    await asyncio.sleep(2)
-    initial_preload = _read_session_row(session_id).get("initialPreload", "try")
-    worker_body = _render_worker_template(initial_preload=initial_preload)
-    pod.create_namespaced_pod(namespace=namespace, body=worker_body)
-    await _wait_for_worker_healthz()
-    # The fresh worker resets _dispatch_count to 0; the recycle signal stays
-    # False until the next response says otherwise.
-    global _last_response_near_recycle  # pylint: disable=global-statement
-    global _active_dispatch_count_on_worker  # pylint: disable=global-statement
-    _last_response_near_recycle = False
-    _active_dispatch_count_on_worker = 0
 
 
 # ---- Idle timer ---------------------------------------------------------

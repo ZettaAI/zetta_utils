@@ -1,4 +1,3 @@
-import asyncio
 import time
 
 import pytest
@@ -28,7 +27,7 @@ def _user_env(monkeypatch):
 
 
 def test_queued_at_none_preserves_existing_behavior(firestore_emulator, register_noop, mocker):
-    mocker.patch("zetta_utils.run._record_run")
+    mocker.patch("zetta_utils.run.record_run")
     with run_ctx_manager(main_run_process=True, run_id="test-run-001", spec={}):
         row = run.RUN_DB[("test-run-001", (RunInfo.STATE.value,))]
         assert row[RunInfo.STATE.value] == RunState.RUNNING.value
@@ -37,7 +36,7 @@ def test_queued_at_none_preserves_existing_behavior(firestore_emulator, register
 
 
 def test_queued_then_running_transition(firestore_emulator, register_noop, mocker):
-    mocker.patch("zetta_utils.run._record_run")
+    mocker.patch("zetta_utils.run.record_run")
     queued_at = time.time()
     with run_ctx_manager(
         main_run_process=True,
@@ -56,7 +55,7 @@ def test_queued_then_running_transition(firestore_emulator, register_noop, mocke
 
 
 def test_queued_without_transition_terminates_cleanly(firestore_emulator, register_noop, mocker):
-    mocker.patch("zetta_utils.run._record_run")
+    mocker.patch("zetta_utils.run.record_run")
     with pytest.raises(RuntimeError, match="simulated"):
         with run_ctx_manager(
             main_run_process=True,
@@ -70,7 +69,7 @@ def test_queued_without_transition_terminates_cleanly(firestore_emulator, regist
 
 
 def test_transition_to_running_is_idempotent(firestore_emulator, register_noop, mocker):
-    mocker.patch("zetta_utils.run._record_run")
+    mocker.patch("zetta_utils.run.record_run")
     with run_ctx_manager(
         main_run_process=True,
         run_id="test-run-004",
@@ -97,7 +96,7 @@ def test_transition_from_non_queued_raises():
 
 
 def test_gc_filter_includes_queued(firestore_emulator, mocker):
-    mocker.patch("zetta_utils.run._record_run")
+    mocker.patch("zetta_utils.run.record_run")
     with run_ctx_manager(
         main_run_process=True,
         run_id="test-run-stale-queued",
@@ -113,21 +112,3 @@ def test_gc_filter_includes_queued(firestore_emulator, mocker):
     assert "test-run-stale-queued" in rows
 
 
-def test_cancelled_in_queued_path_marks_failed(firestore_emulator, mocker):
-    mocker.patch("zetta_utils.run._record_run")
-    with pytest.raises(asyncio.CancelledError):
-        with run_ctx_manager(
-            main_run_process=True,
-            run_id="test-run-cancelled",
-            spec={},
-            queued_at=time.time(),
-        ):
-            raise asyncio.CancelledError()
-    final = run.RUN_DB[("test-run-cancelled", (RunInfo.STATE.value,))]
-    assert final[RunInfo.STATE.value] == RunState.FAILED.value
-
-
-def test_record_run_public_wrapper(mocker):
-    inner = mocker.patch("zetta_utils.run._record_run")
-    run.record_run({"x": 1})
-    inner.assert_called_once_with({"x": 1})

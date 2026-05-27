@@ -2,9 +2,8 @@
 # ${SESSION_ID}, ${INITIAL_PRELOAD}, ${MASTER_POD_NAME}, ${MASTER_POD_UID}, and
 # ${SESSIONS_IMAGE_TAG}, then calls CoreV1Api().create_namespaced_pod(...).
 #
-# automountServiceAccountToken: false is non-negotiable — the worker holds no
-# GCP/K8s credentials and writes nothing to Firestore. ownerReferences target
-# the master Pod so K8s cascade-GC reaps the worker when the master is gone.
+# ownerReferences target the master Pod so K8s cascade-GC reaps the worker when
+# the master is gone.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -21,7 +20,6 @@ metadata:
     controller: true
     blockOwnerDeletion: true
 spec:
-  automountServiceAccountToken: false
   restartPolicy: Never
   containers:
   - name: session-worker
@@ -32,8 +30,6 @@ spec:
       value: ${SESSION_ID}
     - name: INITIAL_PRELOAD
       value: ${INITIAL_PRELOAD}
-    - name: MAX_DISPATCHES_PER_POD
-      value: "50"
     - name: OAUTH_CLIENT_ID
       valueFrom:
         secretKeyRef:

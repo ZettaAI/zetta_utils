@@ -31,7 +31,6 @@ async def test_a_boot_creates_pod_and_service_with_owner_refs(
 
     pod_call = core_mock.create_namespaced_pod.call_args
     pod_body = pod_call.kwargs["body"]
-    assert pod_body["spec"]["automountServiceAccountToken"] is False
     assert pod_body["metadata"]["ownerReferences"][0]["uid"] == "pod-uid-xyz"
 
     svc_call = core_mock.create_namespaced_service.call_args
@@ -72,36 +71,6 @@ async def test_c_idle_timer_cancels_on_new_dispatch(master_env, mock_k8s_apis, m
     master._cancel_idle_timer()
     await asyncio.sleep(0.15)
     assert master._idle_timer_task is None
-
-
-async def test_d_recycle_on_near_recycle_then_refused(
-    master_env, mock_k8s_apis, mocker, aiohttp_mock_session
-):
-    """On connection-refused after nearRecycle=true, worker is recreated."""
-    from zetta_utils.session import master
-
-    master._last_response_near_recycle = True
-    master._worker_endpoint = "http://session-worker-test/"
-
-    mocker.patch("zetta_utils.session.master._update_last_dispatch_at")
-    success_cm, _ = aiohttp_mock_session._make_response(
-        status=200,
-        json_payload={"result": 42, "dispatchCount": 1, "nearRecycle": False},
-    )
-    aiohttp_mock_session.post.side_effect = [
-        aiohttp.ClientConnectionError("dead"),
-        success_cm,
-    ]
-    recreate_mock = mocker.patch(
-        "zetta_utils.session.master._recreate_worker_pod",
-        new_callable=mocker.AsyncMock,
-    )
-
-    body = await master._forward_dispatch_to_worker(
-        {"specUrl": "gs://x", "runId": "r1", "jobType": "j", "requiredPreload": "try"}
-    )
-    recreate_mock.assert_called_once()
-    assert body["dispatchCount"] == 1
 
 
 async def test_e_terminate_cleans_up(master_env, mock_k8s_apis, mocker):
@@ -169,7 +138,7 @@ async def test_g_queue_drain_polls_until_empty(
     mocker.patch("zetta_utils.session.master._update_last_dispatch_at")
     aiohttp_mock_session.set_post_response(
         status=200,
-        json_payload={"result": None, "dispatchCount": 1, "nearRecycle": False},
+        json_payload={"result": None},
     )
 
     from zetta_utils.session import master
@@ -270,7 +239,7 @@ async def test_l_concurrent_dispatches_idle_timer_safe(
     mocker.patch("zetta_utils.session.master._update_last_dispatch_at")
     aiohttp_mock_session.set_post_response(
         status=200,
-        json_payload={"result": "ok", "dispatchCount": 1, "nearRecycle": False},
+        json_payload={"result": "ok"},
     )
 
     body = {"specUrl": "gs://x", "runId": "r1", "jobType": "j", "requiredPreload": "try"}
@@ -278,26 +247,21 @@ async def test_l_concurrent_dispatches_idle_timer_safe(
         master._dispatch_logic(body, authorization="Bearer fake@zetta.ai"),
         master._dispatch_logic(body, authorization="Bearer fake@zetta.ai"),
     )
-    assert all(r["dispatchCount"] == 1 for r in results)
+    assert all(r["result"] == "ok" for r in results)
 
     assert master._idle_timer_task is not None
     assert not master._idle_timer_task.done()
 
 
-async def test_m_worker_500_surfaces_as_502_no_recycle(
+async def test_m_worker_500_surfaces_as_502(
     master_env, mock_k8s_apis, mocker, aiohttp_mock_session
 ):
     """Worker /run_spec/ HTTP 500 -> master returns 502 after one bounded retry."""
     from zetta_utils.session import master
 
-    master._last_response_near_recycle = False
     master._worker_endpoint = "http://session-worker-test/"
 
     mocker.patch("asyncio.sleep", new_callable=mocker.AsyncMock)
-    recreate_spy = mocker.patch(
-        "zetta_utils.session.master._recreate_worker_pod",
-        new_callable=mocker.AsyncMock,
-    )
 
     def _raise_500(*_, **__):
         request_info = mocker.MagicMock()
@@ -326,7 +290,6 @@ async def test_m_worker_500_surfaces_as_502_no_recycle(
         )
     assert exc_info.value.status == 502
     assert exc_info.value.reason == "worker_run_spec_error"
-    recreate_spy.assert_not_called()
     assert aiohttp_mock_session.post.call_count == 2
 
 
@@ -618,7 +581,7 @@ async def test_wait_for_worker_healthz_permanent_failure(
 
     with pytest.raises(SystemExit):
         await master._wait_for_worker_healthz()
-    terminate.assert_awaited_with("worker_boot_self_check_failed")
+    terminate.assert_awaited_with("worker_permanent_failure")
 
 
 # ---- Terminate / shutdown ----------------------------------------------
@@ -794,9 +757,7 @@ async def test_forward_dispatch_bare_token_gets_bearer_prefix(
     from zetta_utils.session import master
 
     master._worker_endpoint = "http://session-worker-test/"
-    aiohttp_mock_session.set_post_response(
-        status=200, json_payload={"dispatchCount": 1, "nearRecycle": False}
-    )
+    aiohttp_mock_session.set_post_response(status=200, json_payload={"result": 1})
     mocker.patch("zetta_utils.session.master._update_last_dispatch_at")
 
     await master._forward_dispatch_to_worker(
@@ -841,7 +802,6 @@ async def test_forward_dispatch_conn_refused_permanent(master_env, mocker, aioht
     """Connection refused + permanent verdict terminates then raises 502."""
     from zetta_utils.session import master
 
-    master._last_response_near_recycle = False
     master._worker_endpoint = "http://session-worker-test/"
     aiohttp_mock_session.post.side_effect = aiohttp.ClientConnectionError("dead")
     mocker.patch(
@@ -858,14 +818,13 @@ async def test_forward_dispatch_conn_refused_permanent(master_env, mocker, aioht
             {"specUrl": "gs://x", "runId": "r1", "jobType": "j", "requiredPreload": "try"}
         )
     assert exc_info.value.reason == "worker unreachable"
-    terminate.assert_awaited_with("worker_boot_self_check_failed")
+    terminate.assert_awaited_with("worker_permanent_failure")
 
 
 async def test_forward_dispatch_conn_refused_transient(master_env, mocker, aiohttp_mock_session):
     """Connection refused + transient verdict raises 502 without terminating."""
     from zetta_utils.session import master
 
-    master._last_response_near_recycle = False
     master._worker_endpoint = "http://session-worker-test/"
     aiohttp_mock_session.post.side_effect = aiohttp.ClientConnectionError("dead")
     mocker.patch(
@@ -886,36 +845,7 @@ async def test_forward_dispatch_conn_refused_transient(master_env, mocker, aioht
     assert aiohttp_mock_session.post.call_count == 1
 
 
-# ---- Recycle / idle timer ----------------------------------------------
-
-
-async def test_recreate_worker_pod_resets_state(master_env, mock_k8s_apis, mocker):
-    """_recreate_worker_pod recreates the Pod and resets recycle state."""
-    from zetta_utils.session import master
-
-    master._last_response_near_recycle = True
-    master._active_dispatch_count_on_worker = 5
-    mocker.patch(
-        "zetta_utils.session.master._read_session_row",
-        return_value={"initialPreload": "try"},
-    )
-    wait = mocker.patch(
-        "zetta_utils.session.master._wait_for_worker_healthz",
-        new_callable=mocker.AsyncMock,
-    )
-    mocker.patch("asyncio.sleep", new_callable=mocker.AsyncMock)
-
-    await master._recreate_worker_pod()
-
-    mock_k8s_apis.delete_namespaced_pod.assert_called_once()
-    assert (
-        mock_k8s_apis.delete_namespaced_pod.call_args.kwargs["name"]
-        == "session-worker-test-uuid-001"
-    )
-    mock_k8s_apis.create_namespaced_pod.assert_called_once()
-    wait.assert_awaited_once_with()
-    assert master._last_response_near_recycle is False
-    assert master._active_dispatch_count_on_worker == 0
+# ---- Idle timer ---------------------------------------------------------
 
 
 async def test_start_idle_timer_is_idempotent(master_env, mocker):

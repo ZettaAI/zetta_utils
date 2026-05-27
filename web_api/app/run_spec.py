@@ -14,7 +14,6 @@ import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
-from starlette.background import BackgroundTask
 
 from zetta_utils import builder, parsing, run, setup_environment
 from zetta_utils.common import ctx_managers
@@ -23,9 +22,7 @@ from zetta_utils.run import run_ctx_manager
 api = FastAPI(redirect_slashes=False)
 _run_spec_semaphore = asyncio.Semaphore(1)
 _loaded_preload: str = os.environ.get("INITIAL_PRELOAD", "try")
-_dispatch_count: int = 0
 _PRELOAD_RANK = {"none": 0, "try": 1, "inference": 2, "training": 3, "all": 4}
-_MAX_DISPATCHES = int(os.environ.get("MAX_DISPATCHES_PER_POD", "50"))
 _RUN_SPEC_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("RUN_SPEC_DOWNLOAD_TIMEOUT_SEC", "30"))
 
 log = logging.getLogger(__name__)
@@ -40,13 +37,11 @@ class RunSpecBody(BaseModel):
 
 class RunSpecResponse(BaseModel):
     result: object
-    dispatchCount: int
-    nearRecycle: bool
 
 
 @api.post("/")
 async def run_spec(body: RunSpecBody) -> Response:
-    global _loaded_preload, _dispatch_count
+    global _loaded_preload
 
     session_id = os.environ.get("SESSION_ID", "<unknown>")
     log.info(
@@ -88,8 +83,6 @@ async def run_spec(body: RunSpecBody) -> Response:
                 ):
                     run.record_run(spec)
                     result = builder.build(spec)
-                _dispatch_count += 1
-                near_recycle = _dispatch_count >= _MAX_DISPATCHES - 1
                 _log_dispatch_state(
                     "completed", session_id=session_id, run_id=body.runId, job_type=body.jobType
                 )
@@ -99,30 +92,13 @@ async def run_spec(body: RunSpecBody) -> Response:
                         "sessionId": session_id,
                         "runId": body.runId,
                         "outcome": "completed",
-                        "dispatchCount": _dispatch_count,
-                        "nearRecycle": near_recycle,
                     },
                 )
                 _light_cleanup()
 
-                response_body = RunSpecResponse(
-                    result=result,
-                    dispatchCount=_dispatch_count,
-                    nearRecycle=near_recycle,
-                ).model_dump_json()
-
-                # Recycle is success-path-only AND must fire AFTER the
-                # response body is flushed to the socket. BackgroundTask
-                # runs post-response-write; os._exit() in `finally:`
-                # would kill hypercorn before the bytes leave the kernel.
-                background: BackgroundTask | None = None
-                if _dispatch_count >= _MAX_DISPATCHES:
-                    background = BackgroundTask(_recycle_after_response, session_id)
-
                 return Response(
-                    content=response_body,
+                    content=RunSpecResponse(result=result).model_dump_json(),
                     media_type="application/json",
-                    background=background,
                 )
             except Exception:
                 _log_dispatch_state(
@@ -134,16 +110,9 @@ async def run_spec(body: RunSpecBody) -> Response:
                         "sessionId": session_id,
                         "runId": body.runId,
                         "outcome": "failed",
-                        "dispatchCount": _dispatch_count,
                     },
                 )
                 _light_cleanup()
-                # Failed dispatches do not count toward the per-pod cap. The
-                # cap drives a graceful recycle that is structurally
-                # success-only: the recycle os._exit fires from a success-path
-                # BackgroundTask and nearRecycle is delivered only in a
-                # success-path response body. Counting failures here would let
-                # the threshold cross without the master ever being told.
                 raise HTTPException(status_code=500, detail="dispatch failed")
 
 
@@ -157,14 +126,6 @@ def _log_dispatch_state(state: str, *, session_id: str, run_id: str, job_type: s
             "jobType": job_type,
         },
     )
-
-
-def _recycle_after_response(session_id: str) -> None:
-    log.info(
-        "sessions.worker.exit_at_max_dispatches",
-        extra={"sessionId": session_id, "dispatchCount": _dispatch_count},
-    )
-    os._exit(0)  # pragma: no cover
 
 
 def _upgrade_preload_if_needed(required: str, session_id: str) -> None:

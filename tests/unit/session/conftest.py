@@ -50,7 +50,6 @@ metadata:
     uid: ${MASTER_POD_UID}
     controller: true
 spec:
-  automountServiceAccountToken: false
   containers:
   - name: session-worker
     image: ${SESSIONS_IMAGE_TAG}

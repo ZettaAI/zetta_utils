@@ -23,7 +23,6 @@ def test_worker_template_substitution(master_env):
     body = master._render_worker_template(initial_preload="try")
     assert body["metadata"]["name"] == "session-worker-test-uuid-001"
     assert body["metadata"]["namespace"] == "sessions"
-    assert body["spec"]["automountServiceAccountToken"] is False
     or_ref = body["metadata"]["ownerReferences"][0]
     assert or_ref["uid"] == "pod-uid-xyz"
     assert or_ref["name"] == "session-master-test-uuid-001-abcd"

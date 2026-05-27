@@ -70,7 +70,7 @@ def update_run_results(results: dict) -> None:
     update_run_info(RUN_ID, info)
 
 
-def _record_run(spec: dict | list | None = None) -> None:
+def record_run(spec: dict | list | None = None) -> None:
     """
     Records run info in a bucket for archiving.
     """
@@ -92,16 +92,6 @@ def _record_run(spec: dict | list | None = None) -> None:
             content = src.read()
         with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
             dst.write(content)
-
-
-def record_run(spec: dict | list | None = None) -> None:
-    """Archive run info to the run-info bucket.
-
-    Cross-module callers obtain the real spec only after a deferred download
-    (e.g. the session worker), so they archive once the spec is available.
-    Requires RUN_ID to be set and ZETTA_USER/ZETTA_PROJECT in the environment.
-    """
-    _record_run(spec)
 
 
 def get_latest_checkpoint(run_id: str, zetta_user: str | None = None) -> str:
@@ -140,7 +130,7 @@ def _check_run_id_conflict(
     if allowed_prior_state is None:
         raise ValueError(f"RUN_ID {run_id} already exists in database.")
     row = RUN_DB[(run_id, (RunInfo.STATE.value,))]
-    current = row.get(RunInfo.STATE.value) if isinstance(row, dict) else None
+    current = row.get(RunInfo.STATE.value)
     if current != allowed_prior_state:
         raise ValueError(
             f"RUN_ID {run_id} already exists with state={current!r}; "
@@ -255,7 +245,7 @@ def run_ctx_manager(  # pylint: disable=too-many-statements
                 RunInfo.STATE.value: status,
                 RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
             }
-            _record_run(spec)
+            record_run(spec)
             update_run_info(RUN_ID, info)
         else:
             update_run_info(
@@ -285,7 +275,7 @@ def run_ctx_manager(  # pylint: disable=too-many-statements
 
     try:
         yield run_ctx
-    except BaseException as e:
+    except Exception as e:
         status = RunState.FAILED.value
         raise e from None
     finally:

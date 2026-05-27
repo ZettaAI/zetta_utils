@@ -16,7 +16,6 @@ import asyncio
 import logging
 import os
 import uuid
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -34,7 +33,6 @@ from zetta_utils.session import _get_sessions_db
 log = logging.getLogger(__name__)
 
 WORKLOAD_NAMESPACE = os.environ.get("WORKLOAD_NAMESPACE", "sessions")
-ACTIVE_SESSIONS_GAUGE_INTERVAL_S = 30
 
 
 def _sessions_image_tag() -> str:
@@ -198,16 +196,7 @@ def _render_master_service(*, session_id: str, job_uid: str) -> dict:
 # ---- Endpoints ----------------------------------------------------------
 
 
-@asynccontextmanager
-async def _lifespan(app: FastAPI):
-    gauge = asyncio.create_task(_active_sessions_gauge_loop())
-    try:
-        yield
-    finally:
-        gauge.cancel()
-
-
-api = FastAPI(lifespan=_lifespan)
+api = FastAPI()
 
 
 @api.post("/", response_model=CreateSessionResponse, status_code=201)
@@ -387,20 +376,3 @@ async def terminate(session_id: str) -> dict:
     )
     _write_session_state(session_id, "down", reason="explicit_terminate")
     return {"state": "down"}
-
-
-async def _active_sessions_gauge_loop() -> None:
-    while True:
-        try:
-            jobs = k8s_client.BatchV1Api().list_namespaced_job(
-                namespace=WORKLOAD_NAMESPACE,
-                label_selector="app=session-master",
-            )
-            count = sum(1 for j in jobs.items if j.status.active)
-            log.info("sessions.active_sessions_count", extra={"value": count})
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            log.warning(
-                "sessions.active_sessions_count_sample_failed",
-                extra={"error": str(e)},
-            )
-        await asyncio.sleep(ACTIVE_SESSIONS_GAUGE_INTERVAL_S)

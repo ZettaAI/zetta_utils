@@ -112,9 +112,7 @@ async def test_dispatch_ready_proxies_to_master(manager_env, mocker, aiohttp_moc
         "web_api.app.session._read_session_row",
         return_value={"state": "ready", "controlEndpoint": "http://session-master-s1/"},
     )
-    aiohttp_mock_session.set_post_response(
-        status=200, json_payload={"result": 1, "dispatchCount": 1, "nearRecycle": False}
-    )
+    aiohttp_mock_session.set_post_response(status=200, json_payload={"result": 1})
 
     from web_api.app import session
 
@@ -122,7 +120,7 @@ async def test_dispatch_ready_proxies_to_master(manager_env, mocker, aiohttp_moc
         session_id="s1",
         body=session.DispatchBody(specUrl="gs://x", runId="r1", jobType="j"),
     )
-    assert resp["dispatchCount"] == 1
+    assert resp["result"] == 1
 
 
 async def test_dispatch_ready_proxy_unreachable_lazy_down(

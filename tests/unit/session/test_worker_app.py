@@ -41,7 +41,6 @@ def test_worker_app_has_no_portal_routers():
 
 def test_worker_app_has_auth_middleware():
     from web_api.app import worker
-
     from web_api.app.auth import check_authorized_user
 
     middleware_funcs = [

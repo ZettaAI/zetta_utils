@@ -696,6 +696,7 @@ async def test_dispatch_handler_assembles_payload(master_env, mocker):
         },
         authorization="Bearer t",
     )
+    assert isinstance(resp.body, bytes)
     assert json.loads(resp.body) == {"ok": 1}
 
 
@@ -710,6 +711,7 @@ async def test_status_handler_returns_logic_result(master_env, mocker):
     )
 
     resp = await master.status(mocker.MagicMock())
+    assert isinstance(resp.body, bytes)
     assert json.loads(resp.body) == {"state": "ready"}
 
 
@@ -724,6 +726,7 @@ async def test_terminate_handler_returns_logic_result(master_env, mocker):
     )
 
     resp = await master.terminate(mocker.MagicMock())
+    assert isinstance(resp.body, bytes)
     assert json.loads(resp.body) == {"state": "down"}
 
 
@@ -732,7 +735,11 @@ async def test_build_app_registers_routes(master_env):
     from zetta_utils.session import master
 
     app = master._build_app()
-    registered = {(route.method, route.resource.canonical) for route in app.router.routes()}
+    registered = {
+        (route.method, route.resource.canonical)
+        for route in app.router.routes()
+        if route.resource is not None
+    }
     assert ("POST", "/dispatch") in registered
     assert ("GET", "/status") in registered
     assert ("POST", "/terminate") in registered

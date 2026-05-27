@@ -1,3 +1,4 @@
+# pylint: disable=protected-access,unused-argument,import-outside-toplevel
 import asyncio
 
 import aiohttp

@@ -1,3 +1,4 @@
+# pylint: disable=protected-access,import-outside-toplevel
 import asyncio
 
 import pytest

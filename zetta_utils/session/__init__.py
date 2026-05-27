@@ -18,7 +18,7 @@ def _get_sessions_db() -> firestore.Client:
     require GCP credentials. The session documents live in the main database,
     distinct from the run-info DB.
     """
-    global _sessions_db
+    global _sessions_db  # pylint: disable=global-statement
     if _sessions_db is None:
         _sessions_db = firestore.Client(
             project=os.environ.get("SESSIONS_FIRESTORE_PROJECT", constants.DEFAULT_PROJECT),

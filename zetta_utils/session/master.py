@@ -598,7 +598,7 @@ async def _terminate_session(reason: str) -> None:
 # ---- Serve --------------------------------------------------------------
 
 
-async def _serve_forever() -> None:
+async def _serve_forever() -> None:  # pragma: no cover
     """Run the aiohttp.web app, bound to 0.0.0.0:80.
 
     Returns when the shutdown event is set by the idle timer, the terminate

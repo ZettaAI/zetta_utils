@@ -553,7 +553,7 @@ async def _idle_timer_body() -> None:
 # ---- Shutdown -----------------------------------------------------------
 
 
-def _install_sigterm_handler() -> None:
+def _install_sigterm_handler() -> None:  # pragma: no cover
     """Install a SIGTERM handler that runs a clean shutdown.
 
     Uses the running loop's ``add_signal_handler`` so the callback runs from

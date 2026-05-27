@@ -77,7 +77,7 @@ class DispatchBody(BaseModel):
 def _read_session_row(session_id: str) -> dict | None:
     """Read the ``sessions/<session_id>`` document; ``None`` if absent."""
     snap = _get_sessions_db().collection("sessions").document(session_id).get()
-    return snap.to_dict() if snap.exists else None
+    return snap.to_dict() if snap.exists else None  # type: ignore[union-attr]
 
 
 def _write_session_state(session_id: str, state: str, *, reason: str | None = None) -> None:

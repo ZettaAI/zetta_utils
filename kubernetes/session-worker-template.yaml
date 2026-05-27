@@ -24,7 +24,7 @@ spec:
   containers:
   - name: session-worker
     image: ${SESSIONS_IMAGE_TAG}
-    # Default hypercorn CMD from web_api/Dockerfile.gpu applies.
+    command: ["hypercorn", "app.worker:app", "--bind", "0.0.0.0:80"]
     env:
     - name: SESSION_ID
       value: ${SESSION_ID}

@@ -21,6 +21,7 @@ from .painting import api as painting_api
 from .precomputed_annotations import api as precomputed_annotations_api
 from .run_spec import api as run_spec_api
 from .segmentation import api as segmentation_api
+from .session import api as session_api
 from .tasks import api as tasks_api
 
 
@@ -49,6 +50,7 @@ app.mount("/painting", painting_api)
 app.mount("/precomputed", precomputed_annotations_api)
 app.mount("/run_spec", run_spec_api)
 app.mount("/segmentation", segmentation_api)
+app.mount("/sessions", session_api)
 app.mount("/tasks", tasks_api)
 
 

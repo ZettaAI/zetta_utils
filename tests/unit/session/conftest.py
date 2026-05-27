@@ -90,7 +90,7 @@ spec:
 
 @pytest.fixture
 def mock_batch_v1(mocker):
-    return mocker.patch("zetta_utils.session.manager.k8s_client.BatchV1Api").return_value
+    return mocker.patch("web_api.app.session.k8s_client.BatchV1Api").return_value
 
 
 @pytest.fixture

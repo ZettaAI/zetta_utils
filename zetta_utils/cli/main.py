@@ -192,16 +192,6 @@ def session_master() -> None:
 
 
 @cli.command()
-def session_manager() -> None:
-    """Run the session-manager FastAPI service. Driven by env vars."""
-    import asyncio  # pylint: disable=import-outside-toplevel
-
-    from zetta_utils.session import manager  # pylint: disable=import-outside-toplevel
-
-    asyncio.run(manager.main())
-
-
-@cli.command()
 def session_reconcile() -> None:
     """One-shot reconcile scan. Driven by env vars."""
     from zetta_utils.session import reconcile  # pylint: disable=import-outside-toplevel

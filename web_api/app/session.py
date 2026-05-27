@@ -1,18 +1,15 @@
 # pylint: disable=all # type: ignore
 """
-Always-on session-manager service.
+Session orchestration router, mounted under ``/sessions`` in the main API.
 
 Endpoints:
-  POST   /sessions
-  POST   /sessions/{id}/dispatch
-  GET    /sessions/{id}/status
-  DELETE /sessions/{id}
+  POST   /
+  POST   /{session_id}/dispatch
+  GET    /{session_id}/status
+  DELETE /{session_id}
 
-Auth: forwards the caller's Bearer token to the master for worker-side use.
-Access control is enforced by the NetworkPolicy at the cluster boundary.
-
-State: 100% Firestore-backed (main DB). No in-memory session list, no reaper.
-HTTP proxying uses aiohttp (already a dependency; mirrors the master).
+Auth is enforced by the main API's OAuth middleware. State is 100%
+Firestore-backed (main DB). HTTP proxying to the master uses aiohttp.
 """
 
 import asyncio
@@ -24,10 +21,8 @@ from pathlib import Path
 from typing import Literal
 
 import aiohttp
-import hypercorn
-import hypercorn.asyncio
 import yaml
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, HTTPException
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel
@@ -39,10 +34,19 @@ from zetta_utils.session import _get_sessions_db
 log = logging.getLogger(__name__)
 
 WORKLOAD_NAMESPACE = os.environ.get("WORKLOAD_NAMESPACE", "sessions")
-SESSIONS_IMAGE_TAG = os.environ["SESSIONS_IMAGE_TAG"]
-MASTER_TEMPLATE_PATH = os.environ["SESSION_MASTER_TEMPLATE_PATH"]
-MASTER_SERVICE_TEMPLATE_PATH = os.environ["SESSION_MASTER_SERVICE_TEMPLATE_PATH"]
 ACTIVE_SESSIONS_GAUGE_INTERVAL_S = 30
+
+
+def _sessions_image_tag() -> str:
+    return os.environ["SESSIONS_IMAGE_TAG"]
+
+
+def _master_template_path() -> str:
+    return os.environ["SESSION_MASTER_TEMPLATE_PATH"]
+
+
+def _master_service_template_path() -> str:
+    return os.environ["SESSION_MASTER_SERVICE_TEMPLATE_PATH"]
 
 
 class CreateSessionBody(BaseModel):
@@ -120,10 +124,10 @@ def _reserve_or_get_existing(
     its ``sessionId`` and ``state``); otherwise write ``new_row`` at
     ``sessions/<session_id>`` and return ``None``.
 
-    Guards the lookup-then-create race so two concurrent ``POST /sessions`` for
-    the same owner cannot both spawn a master. Firestore requires all reads
-    before any write inside a transaction, and writes go through the
-    transaction object. Needs the composite index
+    Guards the lookup-then-create race so two concurrent ``POST /`` for the
+    same owner cannot both spawn a master. Firestore requires all reads before
+    any write inside a transaction, and writes go through the transaction
+    object. Needs the composite index
     ``(ownerType, ownerId, state, createdAt DESC)``.
     """
     db = _get_sessions_db()
@@ -150,14 +154,14 @@ def _reserve_or_get_existing(
     return _run(transaction)
 
 
-# ---- Auth + proxy helpers -----------------------------------------------
+# ---- Proxy helpers ------------------------------------------------------
 
 
 async def _safe_detail(response: aiohttp.ClientResponse) -> str:
     """Best-effort extract the master's error ``detail``.
 
-    Reads the FastAPI ``HTTPException`` JSON shape; falls back to the HTTP
-    reason phrase when the body is not JSON.
+    Reads a JSON ``detail`` field when present; falls back to the HTTP reason
+    phrase when the body is not JSON or the field is absent.
     """
     try:
         return (await response.json()).get("detail", response.reason)
@@ -177,16 +181,16 @@ def _build_endpoints(session_id: str) -> tuple[str, str]:
 
 def _render_master_job(*, session_id: str) -> dict:
     """Load the master Job YAML template and substitute placeholders."""
-    raw = Path(MASTER_TEMPLATE_PATH).read_text()
+    raw = Path(_master_template_path()).read_text()
     substituted = raw.replace("${SESSION_ID}", session_id).replace(
-        "${SESSIONS_IMAGE_TAG}", SESSIONS_IMAGE_TAG
+        "${SESSIONS_IMAGE_TAG}", _sessions_image_tag()
     )
     return yaml.safe_load(substituted)
 
 
 def _render_master_service(*, session_id: str, job_uid: str) -> dict:
     """Load the master Service YAML template and substitute placeholders."""
-    raw = Path(MASTER_SERVICE_TEMPLATE_PATH).read_text()
+    raw = Path(_master_service_template_path()).read_text()
     substituted = raw.replace("${SESSION_ID}", session_id).replace("${MASTER_JOB_UID}", job_uid)
     return yaml.safe_load(substituted)
 
@@ -203,14 +207,11 @@ async def _lifespan(app: FastAPI):
         gauge.cancel()
 
 
-app = FastAPI(lifespan=_lifespan)
+api = FastAPI(lifespan=_lifespan)
 
 
-@app.post("/sessions", response_model=CreateSessionResponse, status_code=201)
-async def create_session(
-    body: CreateSessionBody,
-    authorization: str = Header(...),
-) -> CreateSessionResponse:
+@api.post("/", response_model=CreateSessionResponse, status_code=201)
+async def create_session(body: CreateSessionBody) -> CreateSessionResponse:
     session_id = str(uuid.uuid4())
     control, worker_url = _build_endpoints(session_id)
 
@@ -291,12 +292,8 @@ async def create_session(
     )
 
 
-@app.post("/sessions/{session_id}/dispatch")
-async def dispatch(
-    session_id: str,
-    body: DispatchBody,
-    authorization: str = Header(...),
-) -> dict:
+@api.post("/{session_id}/dispatch")
+async def dispatch(session_id: str, body: DispatchBody) -> dict:
     row = _read_session_row(session_id)
     if row is None:
         raise HTTPException(status_code=404, detail="unknown session")
@@ -311,7 +308,6 @@ async def dispatch(
                 "runId": body.runId,
                 "jobType": body.jobType,
                 "requiredPreload": body.requiredPreload,
-                "userToken": authorization,
                 "enqueuedAt": firestore.SERVER_TIMESTAMP,
             },
         )
@@ -324,7 +320,6 @@ async def dispatch(
                 async with session.post(
                     f"{row['controlEndpoint']}dispatch",
                     json=body.model_dump(),
-                    headers={"Authorization": authorization},
                 ) as response:
                     if response.status >= 400:
                         # Surface the master's status + detail (401/409/502...)
@@ -346,11 +341,8 @@ async def dispatch(
     raise HTTPException(status_code=409, detail=f"session state={row['state']!r}")
 
 
-@app.get("/sessions/{session_id}/status")
-async def status(
-    session_id: str,
-    authorization: str = Header(...),
-) -> dict:
+@api.get("/{session_id}/status")
+async def status(session_id: str) -> dict:
     row = _read_session_row(session_id)
     if row is None:
         raise HTTPException(status_code=404)
@@ -361,10 +353,7 @@ async def status(
     try:
         timeout = aiohttp.ClientTimeout(total=5.0)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
-                f"{row['controlEndpoint']}status",
-                headers={"Authorization": authorization},
-            ) as response:
+            async with session.get(f"{row['controlEndpoint']}status") as response:
                 if response.status >= 400:
                     raise HTTPException(
                         status_code=response.status,
@@ -380,11 +369,8 @@ async def status(
         return {"state": "down"}
 
 
-@app.delete("/sessions/{session_id}")
-async def terminate(
-    session_id: str,
-    authorization: str = Header(...),
-) -> dict:
+@api.delete("/{session_id}")
+async def terminate(session_id: str) -> dict:
     try:
         k8s_client.BatchV1Api().delete_namespaced_job(
             name=f"session-master-{session_id}",
@@ -418,10 +404,3 @@ async def _active_sessions_gauge_loop() -> None:
                 extra={"error": str(e)},
             )
         await asyncio.sleep(ACTIVE_SESSIONS_GAUGE_INTERVAL_S)
-
-
-async def main() -> None:
-    """CLI entrypoint. Serve the FastAPI app via hypercorn (mirrors master)."""
-    config = hypercorn.Config()
-    config.bind = ["0.0.0.0:80"]
-    await hypercorn.asyncio.serve(app, config)

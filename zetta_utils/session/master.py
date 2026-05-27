@@ -1,11 +1,10 @@
-# pylint: disable=all # type: ignore
 """
 Per-session master process.
 
 Lifecycle:
   Boot     — read SESSION_ID, fetch Firestore row, create worker Pod+Service,
              poll /healthz, drain pre-ready queue, transition state=ready.
-  Steady   — FastAPI app exposing /dispatch, /status, /terminate.
+  Steady   — aiohttp.web app exposing /dispatch, /status, /terminate.
              Proxies to worker. Owns the cancellable idle TTL timer.
   Recycle  — on worker connection-refused: if last response was nearRecycle,
              recreate worker Pod; otherwise check Pod phase and apply the
@@ -26,11 +25,9 @@ from pathlib import Path
 from typing import Literal
 
 import aiohttp
-import hypercorn.asyncio
 import yaml
-from fastapi import FastAPI, Header, HTTPException
+from aiohttp import web
 from google.cloud import firestore
-from pydantic import BaseModel
 
 from kubernetes import client as k8s_client
 from zetta_utils.cloud_management.resource_allocation.k8s import pod, service
@@ -38,13 +35,34 @@ from zetta_utils.session import _get_sessions_db
 
 log = logging.getLogger(__name__)
 
-SESSION_ID = os.environ["SESSION_ID"]
-POD_NAME = os.environ["POD_NAME"]
-POD_UID = os.environ["POD_UID"]
-WORKLOAD_NAMESPACE = os.environ.get("WORKLOAD_NAMESPACE", "sessions")
-SESSIONS_IMAGE_TAG = os.environ["SESSIONS_IMAGE_TAG"]
-WORKER_TEMPLATE_PATH = os.environ["SESSION_WORKER_TEMPLATE_PATH"]
-WORKER_SERVICE_TEMPLATE_PATH = os.environ["SESSION_WORKER_SERVICE_TEMPLATE_PATH"]
+
+def _session_id() -> str:
+    return os.environ["SESSION_ID"]
+
+
+def _pod_name() -> str:
+    return os.environ["POD_NAME"]
+
+
+def _pod_uid() -> str:
+    return os.environ["POD_UID"]
+
+
+def _workload_namespace() -> str:
+    return os.environ.get("WORKLOAD_NAMESPACE", "sessions")
+
+
+def _sessions_image_tag() -> str:
+    return os.environ["SESSIONS_IMAGE_TAG"]
+
+
+def _worker_template_path() -> str:
+    return os.environ["SESSION_WORKER_TEMPLATE_PATH"]
+
+
+def _worker_service_template_path() -> str:
+    return os.environ["SESSION_WORKER_SERVICE_TEMPLATE_PATH"]
+
 
 WORKER_HEALTHZ_TIMEOUT_S = 60
 WORKER_HEALTHZ_POLL_INTERVAL_S = 1
@@ -70,8 +88,6 @@ _shutdown_started: bool = False
 
 _shutdown_event: asyncio.Event | None = None
 
-api = FastAPI()
-
 
 def _get_shutdown_event() -> asyncio.Event:
     """Return the module-level shutdown event, creating it on first use.
@@ -80,7 +96,7 @@ def _get_shutdown_event() -> asyncio.Event:
     in the CLI entrypoint). ``_request_serve_stop`` and ``_serve_forever`` share
     it so a stop requested before serving begins is not lost.
     """
-    global _shutdown_event
+    global _shutdown_event  # pylint: disable=global-statement
     if _shutdown_event is None:
         _shutdown_event = asyncio.Event()
     return _shutdown_event
@@ -89,9 +105,9 @@ def _get_shutdown_event() -> asyncio.Event:
 def _request_serve_stop() -> None:
     """Signal ``_serve_forever`` to return so the process can exit cleanly.
 
-    Sets the shutdown event the hypercorn ``shutdown_trigger`` awaits. Touches
-    no event-loop control directly, so callers (idle timer, terminate handler,
-    SIGTERM handler) leave the loop free for in-flight work to drain.
+    Sets the shutdown event ``_serve_forever`` awaits. Touches no event-loop
+    control directly, so callers (idle timer, terminate handler, SIGTERM
+    handler) leave the loop free for in-flight work to drain.
     """
     _get_shutdown_event().set()
 
@@ -102,7 +118,7 @@ def _request_serve_stop() -> None:
 def _read_session_row(session_id: str) -> dict:
     """Read the ``sessions/<session_id>`` document. Returns ``{}`` if absent."""
     snapshot = _get_sessions_db().collection("sessions").document(session_id).get()
-    return snapshot.to_dict() or {}
+    return snapshot.to_dict() or {}  # type: ignore[union-attr]
 
 
 def _write_session_state(state: str, *, reason: str | None = None) -> None:
@@ -116,7 +132,7 @@ def _write_session_state(state: str, *, reason: str | None = None) -> None:
         payload["terminatedAt"] = datetime.now(timezone.utc)
         if reason is not None:
             payload["terminationReason"] = reason
-    _get_sessions_db().collection("sessions").document(SESSION_ID).set(payload, merge=True)
+    _get_sessions_db().collection("sessions").document(_session_id()).set(payload, merge=True)
 
 
 def _read_queue_docs(session_id: str) -> list[dict]:
@@ -154,7 +170,7 @@ def _delete_queue_doc(session_id: str, dispatch_id: str) -> None:
 
 def _update_last_dispatch_at() -> None:
     """Merge ``lastDispatchAt=<server timestamp>`` onto ``sessions/<SESSION_ID>``."""
-    _get_sessions_db().collection("sessions").document(SESSION_ID).set(
+    _get_sessions_db().collection("sessions").document(_session_id()).set(
         {"lastDispatchAt": firestore.SERVER_TIMESTAMP}, merge=True
     )
 
@@ -163,7 +179,7 @@ def _update_last_dispatch_at() -> None:
 
 
 async def main() -> None:
-    """CLI entrypoint. Boots master, runs FastAPI, blocks until exit signal."""
+    """CLI entrypoint. Boots master, serves the app, blocks until exit signal."""
     _install_sigterm_handler()
     try:
         await _boot()
@@ -173,14 +189,16 @@ async def main() -> None:
 
 
 async def _boot() -> None:
-    global _worker_endpoint, _idle_ttl_sec
+    global _worker_endpoint, _idle_ttl_sec  # pylint: disable=global-statement
 
-    log.info("sessions.master.boot_start", extra={"sessionId": SESSION_ID})
-    row = _read_session_row(SESSION_ID)
+    session_id = _session_id()
+    namespace = _workload_namespace()
+    log.info("sessions.master.boot_start", extra={"sessionId": session_id})
+    row = _read_session_row(session_id)
     if row.get("state") != "preparing":
         log.error(
             "sessions.master.unexpected_initial_state",
-            extra={"sessionId": SESSION_ID, "state": row.get("state")},
+            extra={"sessionId": session_id, "state": row.get("state")},
         )
         raise SystemExit(2)
 
@@ -190,42 +208,40 @@ async def _boot() -> None:
     # Render the worker template; create Pod + Service with ownerReferences
     # pointing at THIS master Pod (downward-API env).
     worker_body = _render_worker_template(initial_preload=initial_preload)
-    pod.create_namespaced_pod(namespace=WORKLOAD_NAMESPACE, body=worker_body)
+    pod.create_namespaced_pod(namespace=namespace, body=worker_body)
 
     worker_svc_body = _render_worker_service()
-    service.create_namespaced_service(namespace=WORKLOAD_NAMESPACE, body=worker_svc_body)
+    service.create_namespaced_service(namespace=namespace, body=worker_svc_body)
 
-    _worker_endpoint = (
-        f"http://session-worker-{SESSION_ID}.{WORKLOAD_NAMESPACE}.svc.cluster.local/"
-    )
+    _worker_endpoint = f"http://session-worker-{session_id}.{namespace}.svc.cluster.local/"
 
     await _wait_for_worker_healthz()
     await _drain_pre_ready_queue()
     _write_session_state("ready")
-    log.info("sessions.master.boot_complete", extra={"sessionId": SESSION_ID})
+    log.info("sessions.master.boot_complete", extra={"sessionId": session_id})
     _start_idle_timer()
 
 
 def _render_worker_template(*, initial_preload: str) -> dict:
     """Load the worker Pod YAML template and substitute placeholders."""
-    raw = Path(WORKER_TEMPLATE_PATH).read_text(encoding="utf-8")
+    raw = Path(_worker_template_path()).read_text(encoding="utf-8")
     substituted = (
-        raw.replace("${SESSION_ID}", SESSION_ID)
+        raw.replace("${SESSION_ID}", _session_id())
         .replace("${INITIAL_PRELOAD}", initial_preload)
-        .replace("${MASTER_POD_NAME}", POD_NAME)
-        .replace("${MASTER_POD_UID}", POD_UID)
-        .replace("${SESSIONS_IMAGE_TAG}", SESSIONS_IMAGE_TAG)
+        .replace("${MASTER_POD_NAME}", _pod_name())
+        .replace("${MASTER_POD_UID}", _pod_uid())
+        .replace("${SESSIONS_IMAGE_TAG}", _sessions_image_tag())
     )
     return yaml.safe_load(substituted)
 
 
 def _render_worker_service() -> dict:
     """Load the worker Service YAML template and substitute placeholders."""
-    raw = Path(WORKER_SERVICE_TEMPLATE_PATH).read_text(encoding="utf-8")
+    raw = Path(_worker_service_template_path()).read_text(encoding="utf-8")
     substituted = (
-        raw.replace("${SESSION_ID}", SESSION_ID)
-        .replace("${MASTER_POD_NAME}", POD_NAME)
-        .replace("${MASTER_POD_UID}", POD_UID)
+        raw.replace("${SESSION_ID}", _session_id())
+        .replace("${MASTER_POD_NAME}", _pod_name())
+        .replace("${MASTER_POD_UID}", _pod_uid())
     )
     return yaml.safe_load(substituted)
 
@@ -270,16 +286,17 @@ def _classify_worker_failure() -> Literal["permanent", "transient"]:
     within the boot budget); unknown / ``Succeeded`` is ``"permanent"`` (the
     worker is gone).
     """
+    session_id = _session_id()
     try:
         worker = pod.read_namespaced_pod_status(
-            name=f"session-worker-{SESSION_ID}",
-            namespace=WORKLOAD_NAMESPACE,
+            name=f"session-worker-{session_id}",
+            namespace=_workload_namespace(),
         )
     except k8s_client.exceptions.ApiException as e:
         if e.status == 404:
             log.warning(
                 "sessions.master.worker_404",
-                extra={"sessionId": SESSION_ID, "context": "classify"},
+                extra={"sessionId": session_id, "context": "classify"},
             )
             return "permanent"
         raise
@@ -294,7 +311,7 @@ def _classify_worker_failure() -> Literal["permanent", "transient"]:
                 break
         log.error(
             "sessions.worker.self_check_failed",
-            extra={"sessionId": SESSION_ID, "exitCode": exit_code},
+            extra={"sessionId": session_id, "exitCode": exit_code},
         )
         return "permanent"
 
@@ -317,45 +334,40 @@ async def _drain_pre_ready_queue() -> None:
     enqueued after the drain completes is handled by the regular ``/dispatch``
     path in the ready state.
     """
+    session_id = _session_id()
     drained = 0
     while True:
-        docs = _read_queue_docs(SESSION_ID)  # ordered by enqueuedAt asc
+        docs = _read_queue_docs(session_id)  # ordered by enqueuedAt asc
         if not docs:
             break
         for doc in docs:
             await _forward_dispatch_to_worker(doc)
-            _delete_queue_doc(SESSION_ID, doc["dispatchId"])
+            _delete_queue_doc(session_id, doc["dispatchId"])
             drained += 1
     log.info(
         "sessions.master.queue_drained",
-        extra={"sessionId": SESSION_ID, "drainedCount": drained},
+        extra={"sessionId": session_id, "drainedCount": drained},
     )
 
 
-# ---- FastAPI endpoints --------------------------------------------------
+# ---- Endpoint logic -----------------------------------------------------
 
 
-class DispatchBody(BaseModel):
-    specUrl: str
-    runId: str
-    jobType: str
-    requiredPreload: str = "try"
-
-
-@api.post("/dispatch")
-async def dispatch(
-    body: DispatchBody,
-    authorization: str = Header(...),
-) -> dict:
+async def _dispatch_logic(body: dict, *, authorization: str | None) -> dict:
+    """Forward a dispatch to the worker, pausing the idle timer around it."""
     _cancel_idle_timer()
     try:
-        return await _forward_dispatch_to_worker(body.model_dump(), user_token=authorization)
+        return await _forward_dispatch_to_worker(body, user_token=authorization)
     finally:
         _start_idle_timer()
 
 
-@api.get("/status")
-async def status(authorization: str = Header(...)) -> dict:
+async def _status_logic() -> dict:
+    """Probe the worker ``/healthz`` and report the session state.
+
+    On an unreachable worker, mark the session ``down`` (reason
+    ``proxy_unreachable``) and return ``{"state": "down"}``.
+    """
     try:
         timeout = aiohttp.ClientTimeout(total=5.0)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -364,17 +376,49 @@ async def status(authorization: str = Header(...)) -> dict:
     except (aiohttp.ClientConnectionError, asyncio.TimeoutError):
         log.warning(
             "sessions.master.worker_404",
-            extra={"sessionId": SESSION_ID, "context": "status"},
+            extra={"sessionId": _session_id(), "context": "status"},
         )
         _write_session_state("down", reason="proxy_unreachable")
         return {"state": "down"}
 
 
-@api.post("/terminate")
-async def terminate(authorization: str = Header(...)) -> dict:
+async def _terminate_logic() -> dict:
+    """Run a clean shutdown then request the serve loop to stop."""
     await _on_shutdown(reason="explicit_terminate")
     _request_serve_stop()
     return {"state": "down"}
+
+
+# ---- aiohttp.web handlers -----------------------------------------------
+
+
+async def dispatch(request: web.Request) -> web.Response:
+    body = await request.json()
+    payload = {
+        "specUrl": body.get("specUrl"),
+        "runId": body.get("runId"),
+        "jobType": body.get("jobType"),
+        "requiredPreload": body.get("requiredPreload", "try"),
+    }
+    authorization = request.headers.get("Authorization")
+    result = await _dispatch_logic(payload, authorization=authorization)
+    return web.json_response(result)
+
+
+async def status(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
+    return web.json_response(await _status_logic())
+
+
+async def terminate(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
+    return web.json_response(await _terminate_logic())
+
+
+def _build_app() -> web.Application:
+    app = web.Application()
+    app.router.add_post("/dispatch", dispatch)
+    app.router.add_get("/status", status)
+    app.router.add_post("/terminate", terminate)
+    return app
 
 
 # ---- Forwarding to worker (handles recycle path) -----------------------
@@ -385,10 +429,11 @@ async def _forward_dispatch_to_worker(
     *,
     user_token: str | None = None,
 ) -> dict:
-    global _last_response_near_recycle, _active_dispatch_count_on_worker
+    global _last_response_near_recycle  # pylint: disable=global-statement
+    global _active_dispatch_count_on_worker  # pylint: disable=global-statement
 
     headers = {}
-    token = user_token or dispatch_doc.get("userToken")
+    token = user_token
     if token:
         if not token.startswith("Bearer "):
             token = "Bearer " + token
@@ -424,19 +469,19 @@ async def _forward_dispatch_to_worker(
         # retry then surfaces 502. No recycle — the worker is healthy at the
         # process level; the failure is application-level.
         if e.status < 500:
-            raise HTTPException(status_code=502, detail="worker_run_spec_client_error") from e
+            raise web.HTTPBadGateway(reason="worker_run_spec_client_error") from e
         if dispatch_doc.get("_master_retry_attempted"):
-            raise HTTPException(status_code=502, detail="worker_run_spec_error") from e
+            raise web.HTTPBadGateway(reason="worker_run_spec_error") from e
         await asyncio.sleep(2.0)
         dispatch_doc = {**dispatch_doc, "_master_retry_attempted": True}
         return await _forward_dispatch_to_worker(dispatch_doc, user_token=user_token)
-    except (aiohttp.ClientConnectionError, asyncio.TimeoutError):
+    except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
         # Worker is unreachable. Decide: graceful recycle or terminal failure.
         if _last_response_near_recycle:
             log.info(
                 "sessions.worker.recycled",
                 extra={
-                    "sessionId": SESSION_ID,
+                    "sessionId": _session_id(),
                     "dispatchCount": _active_dispatch_count_on_worker,
                 },
             )
@@ -446,7 +491,7 @@ async def _forward_dispatch_to_worker(
         verdict = _classify_worker_failure()
         if verdict == "permanent":
             await _terminate_session("worker_boot_self_check_failed")
-        raise HTTPException(status_code=502, detail="worker unreachable")
+        raise web.HTTPBadGateway(reason="worker unreachable") from e
 
 
 async def _recreate_worker_pod() -> None:
@@ -455,19 +500,22 @@ async def _recreate_worker_pod() -> None:
     The new Pod uses the same template; ``ownerReferences`` continue to point
     at this master Pod.
     """
+    session_id = _session_id()
+    namespace = _workload_namespace()
     pod.delete_namespaced_pod(
-        name=f"session-worker-{SESSION_ID}",
-        namespace=WORKLOAD_NAMESPACE,
+        name=f"session-worker-{session_id}",
+        namespace=namespace,
     )
     # Wait briefly for K8s to release the name.
     await asyncio.sleep(2)
-    initial_preload = _read_session_row(SESSION_ID).get("initialPreload", "try")
+    initial_preload = _read_session_row(session_id).get("initialPreload", "try")
     worker_body = _render_worker_template(initial_preload=initial_preload)
-    pod.create_namespaced_pod(namespace=WORKLOAD_NAMESPACE, body=worker_body)
+    pod.create_namespaced_pod(namespace=namespace, body=worker_body)
     await _wait_for_worker_healthz()
     # The fresh worker resets _dispatch_count to 0; the recycle signal stays
     # False until the next response says otherwise.
-    global _last_response_near_recycle, _active_dispatch_count_on_worker
+    global _last_response_near_recycle  # pylint: disable=global-statement
+    global _active_dispatch_count_on_worker  # pylint: disable=global-statement
     _last_response_near_recycle = False
     _active_dispatch_count_on_worker = 0
 
@@ -476,14 +524,14 @@ async def _recreate_worker_pod() -> None:
 
 
 def _start_idle_timer() -> None:
-    global _idle_timer_task
+    global _idle_timer_task  # pylint: disable=global-statement
     if _idle_timer_task and not _idle_timer_task.done():
         return
     _idle_timer_task = asyncio.create_task(_idle_timer_body())
 
 
 def _cancel_idle_timer() -> None:
-    global _idle_timer_task
+    global _idle_timer_task  # pylint: disable=global-statement
     if _idle_timer_task and not _idle_timer_task.done():
         _idle_timer_task.cancel()
     _idle_timer_task = None
@@ -496,7 +544,7 @@ async def _idle_timer_body() -> None:
         return
     log.info(
         "sessions.master.idle_timer_fired",
-        extra={"sessionId": SESSION_ID, "idleTtlSec": _idle_ttl_sec},
+        extra={"sessionId": _session_id(), "idleTtlSec": _idle_ttl_sec},
     )
     await _on_shutdown(reason="idle_timer")
     _request_serve_stop()
@@ -525,18 +573,20 @@ def _install_sigterm_handler() -> None:
 
 
 async def _on_shutdown(*, reason: str) -> None:
-    global _shutdown_started
+    global _shutdown_started  # pylint: disable=global-statement
     if _shutdown_started:
         return
     _shutdown_started = True
+    session_id = _session_id()
+    namespace = _workload_namespace()
     _write_session_state("down", reason=reason)
     pod.delete_namespaced_pod(
-        name=f"session-worker-{SESSION_ID}",
-        namespace=WORKLOAD_NAMESPACE,
+        name=f"session-worker-{session_id}",
+        namespace=namespace,
     )
     service.delete_namespaced_service(
-        name=f"session-worker-{SESSION_ID}",
-        namespace=WORKLOAD_NAMESPACE,
+        name=f"session-worker-{session_id}",
+        namespace=namespace,
     )
 
 
@@ -549,11 +599,14 @@ async def _terminate_session(reason: str) -> None:
 
 
 async def _serve_forever() -> None:
-    """Run the FastAPI app via hypercorn, bound to 0.0.0.0:80.
+    """Run the aiohttp.web app, bound to 0.0.0.0:80.
 
     Returns when the shutdown event is set by the idle timer, the terminate
     handler, or the SIGTERM handler, allowing the process to exit cleanly.
     """
-    config = hypercorn.Config()
-    config.bind = ["0.0.0.0:80"]
-    await hypercorn.asyncio.serve(api, config, shutdown_trigger=_get_shutdown_event().wait)
+    runner = web.AppRunner(_build_app())
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 80)
+    await site.start()
+    await _get_shutdown_event().wait()
+    await runner.cleanup()

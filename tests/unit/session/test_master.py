@@ -1,11 +1,8 @@
 import asyncio
 
-import pytest
-
-pytest.importorskip("fastapi")
-
 import aiohttp
-from fastapi import HTTPException
+import pytest
+from aiohttp import web
 from kubernetes.client.exceptions import ApiException
 
 
@@ -132,7 +129,7 @@ async def test_f_worker_404_writes_down_gracefully(
     write_mock = mocker.patch("zetta_utils.session.master._write_session_state")
     master._worker_endpoint = "http://session-worker-test/"
 
-    result = await master.status(authorization="Bearer fake@zetta.ai")
+    result = await master._status_logic()
     assert result["state"] == "down"
     write_mock.assert_called_with("down", reason="proxy_unreachable")
 
@@ -274,10 +271,10 @@ async def test_l_concurrent_dispatches_idle_timer_safe(
         json_payload={"result": "ok", "dispatchCount": 1, "nearRecycle": False},
     )
 
-    body = master.DispatchBody(specUrl="gs://x", runId="r1", jobType="j", requiredPreload="try")
+    body = {"specUrl": "gs://x", "runId": "r1", "jobType": "j", "requiredPreload": "try"}
     results = await asyncio.gather(
-        master.dispatch(body=body, authorization="Bearer fake@zetta.ai"),
-        master.dispatch(body=body, authorization="Bearer fake@zetta.ai"),
+        master._dispatch_logic(body, authorization="Bearer fake@zetta.ai"),
+        master._dispatch_logic(body, authorization="Bearer fake@zetta.ai"),
     )
     assert all(r["dispatchCount"] == 1 for r in results)
 
@@ -316,7 +313,7 @@ async def test_m_worker_500_surfaces_as_502_no_recycle(
         mocker.MagicMock(side_effect=_raise_500)
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(web.HTTPBadGateway) as exc_info:
         await master._forward_dispatch_to_worker(
             {
                 "specUrl": "gs://x",
@@ -325,7 +322,7 @@ async def test_m_worker_500_surfaces_as_502_no_recycle(
                 "requiredPreload": "try",
             }
         )
-    assert exc_info.value.status_code == 502
-    assert exc_info.value.detail == "worker_run_spec_error"
+    assert exc_info.value.status == 502
+    assert exc_info.value.reason == "worker_run_spec_error"
     recreate_spy.assert_not_called()
     assert aiohttp_mock_session.post.call_count == 2

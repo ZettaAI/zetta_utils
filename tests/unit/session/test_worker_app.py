@@ -44,5 +44,7 @@ def test_worker_app_has_auth_middleware():
 
     from web_api.app.auth import check_authorized_user
 
-    middleware_funcs = [getattr(m, "kwargs", {}).get("dispatch") for m in worker.app.user_middleware]
+    middleware_funcs = [
+        getattr(m, "kwargs", {}).get("dispatch") for m in worker.app.user_middleware
+    ]
     assert check_authorized_user in middleware_funcs

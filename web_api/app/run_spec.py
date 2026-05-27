@@ -27,12 +27,14 @@ _RUN_SPEC_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("RUN_SPEC_DOWNLOAD_TIMEOUT_S
 
 log = logging.getLogger(__name__)
 
+PreloadMode = Literal["none", "try", "inference", "training", "all"]
+
 
 class RunSpecBody(BaseModel):
     specUrl: str
     runId: str
     jobType: str
-    requiredPreload: Literal["none", "try", "inference", "training", "all"] = "try"
+    requiredPreload: PreloadMode = "try"
 
 
 class RunSpecResponse(BaseModel):
@@ -128,7 +130,7 @@ def _log_dispatch_state(state: str, *, session_id: str, run_id: str, job_type: s
     )
 
 
-def _upgrade_preload_if_needed(required: str, session_id: str) -> None:
+def _upgrade_preload_if_needed(required: PreloadMode, session_id: str) -> None:
     """Best-effort preload upgrade. On failure, os._exit(1) so K8s recycles.
 
     Rationale: ``setup_environment(load_mode=...)`` performs module imports

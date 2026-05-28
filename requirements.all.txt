@@ -8,7 +8,7 @@ affine==2.4.0
     # via zetta-utils
 aiofiles==25.1.0
     # via cloud-sql-python-connector
-aiohappyeyeballs==2.6.1
+aiohappyeyeballs==2.6.2
     # via aiohttp
 aiohttp==3.13.5
     # via
@@ -16,6 +16,8 @@ aiohttp==3.13.5
     #   fsspec
     #   gcsfs
     #   zetta-utils
+aioquic==1.2.0
+    # via mitmproxy
 aiosignal==1.4.0
     # via aiohttp
 alabaster==0.7.16
@@ -32,6 +34,14 @@ apeye==1.4.1
     # via sphinx-toolbox
 apeye-core==1.1.5
     # via apeye
+argon2-cffi==25.1.0 ; python_full_version >= '3.12'
+    # via mitmproxy
+argon2-cffi-bindings==25.1.0 ; python_full_version >= '3.12'
+    # via argon2-cffi
+asgiref==3.8.1 ; python_full_version < '3.12'
+    # via mitmproxy
+asgiref==3.11.1 ; python_full_version >= '3.12'
+    # via mitmproxy
 asn1crypto==1.5.1
     # via scramp
 astroid==4.0.4
@@ -48,72 +58,83 @@ attrs==26.1.0
     #   caveclient
     #   jsonschema
     #   referencing
+    #   service-identity
     #   zetta-utils
 autodocsumm==0.2.15
     # via sphinx-toolbox
-awscli==1.45.9
+awscli==1.45.14
     # via zetta-utils
 babel==2.18.0
     # via sphinx
-backports-ssl-match-hostname==3.7.0.1
-    # via netlib
+bcrypt==5.0.0 ; python_full_version >= '3.12'
+    # via mitmproxy
 beautifulsoup4==4.14.3
     # via sphinx-toolbox
 black==21.9b0
     # via zetta-utils
 blinker==1.9.0
-    # via mitmproxy
+    # via flask
 blosc==1.11.4
     # via
     #   cloud-volume
     #   intern
     #   meshparty
-blosc2==4.2.0
+blosc2==4.3.3
     # via tables
-boto3==1.43.9
+boto3==1.43.14
     # via
     #   cloud-files
     #   cloud-volume
     #   moto
     #   task-queue
     #   zetta-utils
-botocore==1.43.9
+botocore==1.43.14
     # via
     #   awscli
     #   boto3
     #   moto
     #   s3transfer
-brotli==1.2.0
+brotli==1.1.0 ; python_full_version < '3.12'
     # via
     #   cloud-files
     #   mapbuffer
+    #   mitmproxy
+    #   urllib3
+brotli==1.2.0 ; python_full_version >= '3.12'
+    # via
+    #   cloud-files
+    #   mapbuffer
+    #   mitmproxy
     #   urllib3
 brotlicffi==1.2.0.1 ; platform_python_implementation != 'CPython'
     # via urllib3
 cachecontrol==0.14.4
     # via sphinx-toolbox
-cachetools==7.1.2
+cachetools==7.1.4
     # via
     #   caveclient
     #   middle-auth-client
     #   zetta-utils
 caveclient==8.1.0
     # via pcg-skel
-certifi==2026.4.22
+certifi==2026.5.20
     # via
+    #   aioquic
     #   clickhouse-connect
     #   httpcore
     #   httpx
     #   kubernetes
-    #   netlib
+    #   mitmproxy
     #   requests
     #   sentry-sdk
     #   sphinx-prompt
 cffi==2.0.0
     # via
+    #   argon2-cffi-bindings
     #   brotlicffi
     #   cryptography
     #   gevent
+    #   zstandard
 cfgv==3.5.0
     # via pre-commit
 chardet==5.2.0
@@ -135,12 +156,11 @@ click==8.0.4
     #   flask
     #   kimimaro
     #   microviewer
-    #   mitmproxy
     #   rq
     #   task-queue
     #   wandb
     #   zetta-utils
-clickhouse-connect==1.0.0
+clickhouse-connect==1.0.1
     # via zetta-utils
 clickhouse-driver==0.2.10
     # via zetta-utils
@@ -175,15 +195,11 @@ compressed-segmentation==2.3.3
     # via cloud-volume
 compresso==3.3.3
     # via cloud-volume
-configargparse==1.7.5
-    # via mitmproxy
 connected-components-3d==3.23.0
     # via
     #   fastmorph
     #   kimimaro
     #   zetta-utils
-construct==2.10.70
-    # via mitmproxy
 contourpy==1.3.3
     # via matplotlib
 coolname==5.0.0
@@ -196,13 +212,24 @@ crc32c==2.8
     # via
     #   cloud-files
     #   mapbuffer
-cryptography==48.0.0
+cryptography==44.0.3 ; python_full_version < '3.12'
     # via
+    #   aioquic
     #   cloud-sql-python-connector
     #   google-auth
+    #   mitmproxy
     #   moto
-    #   netlib
     #   pyopenssl
+    #   service-identity
+cryptography==48.0.0 ; python_full_version >= '3.12'
+    # via
+    #   aioquic
+    #   cloud-sql-python-connector
+    #   google-auth
+    #   mitmproxy
+    #   moto
+    #   pyopenssl
+    #   service-identity
 cuda-bindings==13.2.0 ; sys_platform == 'linux'
     # via torch
 cuda-pathfinder==1.5.4 ; sys_platform == 'linux'
@@ -229,7 +256,7 @@ deflate==0.8.1
     # via
     #   cloud-files
     #   mapbuffer
-dict2css==0.5.0
+dict2css==0.6.0
     # via sphinx-toolbox
 dijkstra3d==1.15.2
     # via kimimaro
@@ -306,10 +333,17 @@ fill-voids==2.1.2
     # via
     #   fastmorph
     #   kimimaro
-flask==2.2.5
+flask==3.1.0 ; python_full_version < '3.12'
     # via
     #   flask-cors
     #   middle-auth-client
+    #   mitmproxy
+    #   zetta-utils
+flask==3.1.3 ; python_full_version >= '3.12'
+    # via
+    #   flask-cors
+    #   middle-auth-client
+    #   mitmproxy
     #   zetta-utils
 flask-cors==6.0.2
     # via zetta-utils
@@ -341,7 +375,7 @@ gcsfs==2026.4.0 ; (python_full_version < '3.14' and platform_machine != 's390x')
     # via zetta-utils
 gcsfs==2026.5.0 ; python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform != 'win32'
     # via zetta-utils
-gevent==26.4.0
+gevent==26.5.0
     # via
     #   cloud-files
     #   cloud-volume
@@ -442,7 +476,7 @@ googleapis-common-protos==1.75.0
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
-greenlet==3.5.0 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' or platform_python_implementation == 'CPython'
+greenlet==3.5.1 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' or platform_python_implementation == 'CPython'
     # via
     #   gevent
     #   sqlalchemy
@@ -472,8 +506,20 @@ grpcio-status==1.80.0
     # via
     #   google-api-core
     #   google-cloud-pubsub
-h11==0.16.0
-    # via httpcore
+h11==0.14.0 ; python_full_version < '3.12'
+    # via
+    #   httpcore
+    #   mitmproxy
+    #   wsproto
+h11==0.16.0 ; python_full_version >= '3.12'
+    # via
+    #   httpcore
+    #   mitmproxy
+    #   wsproto
+h2==4.1.0 ; python_full_version < '3.12'
+    # via mitmproxy
+h2==4.3.0 ; python_full_version >= '3.12'
+    # via mitmproxy
 h5py==3.16.0
     # via
     #   hickle
@@ -481,12 +527,12 @@ h5py==3.16.0
 hickle==5.0.3
     # via cutie
 hpack==4.1.0
-    # via netlib
-html2text==2025.4.15
-    # via mitmproxy
+    # via h2
 html5lib==1.1
     # via sphinx-toolbox
-httpcore==1.0.9
+httpcore==1.0.8 ; python_full_version < '3.12'
+    # via httpx
+httpcore==1.0.9 ; python_full_version >= '3.12'
     # via httpx
 httplib2==0.31.2
     # via
@@ -498,9 +544,17 @@ httpx==0.28.1
     # via trimesh
 hydra-core==1.3.2
     # via cutie
+hyperframe==6.0.1 ; python_full_version < '3.12'
+    # via
+    #   h2
+    #   mitmproxy
+hyperframe==6.1.0 ; python_full_version >= '3.12'
+    # via
+    #   h2
+    #   mitmproxy
 identify==2.6.19
     # via pre-commit
-idna==3.15
+idna==3.16
     # via
     #   anyio
     #   apeye-core
@@ -512,7 +566,7 @@ imagecodecs==2026.3.6 ; python_full_version < '3.12'
     # via cloud-volume
 imagecodecs==2026.5.10 ; python_full_version >= '3.12'
     # via cloud-volume
-imagecorruptions-imaug==1.1.3
+imagecorruptions-imaug==1.1.4
     # via
     #   imaug
     #   zetta-utils
@@ -524,8 +578,6 @@ imagesize==2.0.0
     # via sphinx
 imaug==0.4.2
     # via zetta-utils
-importlib-metadata==8.7.1
-    # via opentelemetry-api
 inflection==0.5.1
     # via python-jsonschema-objects
 iniconfig==2.3.0
@@ -577,19 +629,25 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyterlab-widgets==3.0.16
     # via ipywidgets
+kaitaistruct==0.10 ; python_full_version < '3.12'
+    # via mitmproxy
+kaitaistruct==0.11 ; python_full_version >= '3.12'
+    # via mitmproxy
 kimimaro==5.8.1
     # via zetta-utils
 kiwisolver==1.5.0
     # via matplotlib
-kornia==0.8.2
+kornia==0.8.3
     # via zetta-utils
-kornia-rs==0.1.11
+kornia-rs==0.1.14
     # via kornia
 kubernetes==35.0.0
     # via zetta-utils
 lazy-loader==0.5
     # via scikit-image
-lightning==2.6.1
+ldap3==2.9.1
+    # via mitmproxy
+lightning==2.6.4
     # via zetta-utils
 lightning-utilities==0.15.3
     # via
@@ -600,15 +658,13 @@ llvmlite==0.47.0
     # via numba
 lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976133efb991ebc40171eeed7a22c57ba50a
     # via zetta-utils
-lxml==6.1.0
-    # via
-    #   mitmproxy
-    #   trimesh
+lxml==6.1.1
+    # via trimesh
 lz4==4.4.5
     # via clickhouse-connect
 mahotas==1.4.18
     # via lsds
-manifold3d==3.4.1 ; python_full_version < '3.14'
+manifold3d==3.5.0 ; python_full_version < '3.14'
     # via trimesh
 mapbox-earcut==2.0.0
     # via trimesh
@@ -622,6 +678,7 @@ markdown-it-py==4.2.0
     # via rich
 markupsafe==3.0.3
     # via
+    #   flask
     #   jinja2
     #   sphinx-jinja2-compat
     #   werkzeug
@@ -643,8 +700,24 @@ microviewer==1.21.0
     # via cloud-volume
 middle-auth-client==3.19.2
     # via zetta-utils
-mitmproxy==0.14.0
+mitmproxy==11.0.2 ; python_full_version < '3.12'
     # via zetta-utils
+mitmproxy==12.2.3 ; python_full_version >= '3.12'
+    # via zetta-utils
+mitmproxy-linux==0.12.9 ; python_full_version >= '3.12' and sys_platform == 'linux'
+    # via mitmproxy-rs
+mitmproxy-macos==0.10.7 ; python_full_version < '3.12' and sys_platform == 'darwin'
+    # via mitmproxy-rs
+mitmproxy-macos==0.12.9 ; python_full_version >= '3.12' and sys_platform == 'darwin'
+    # via mitmproxy-rs
+mitmproxy-rs==0.10.7 ; python_full_version < '3.12'
+    # via mitmproxy
+mitmproxy-rs==0.12.9 ; python_full_version >= '3.12'
+    # via mitmproxy
+mitmproxy-windows==0.10.7 ; python_full_version < '3.12' and os_name == 'nt'
+    # via mitmproxy-rs
+mitmproxy-windows==0.12.9 ; python_full_version >= '3.12' and os_name == 'nt'
+    # via mitmproxy-rs
 ml-dtypes==0.5.4
     # via
     #   onnx
@@ -653,10 +726,16 @@ moto==5.2.1
     # via zetta-utils
 mpmath==1.3.0
     # via sympy
-msgpack==1.1.2
+msgpack==1.1.0 ; python_full_version < '3.12'
     # via
     #   blosc2
     #   cachecontrol
+    #   mitmproxy
+msgpack==1.1.2 ; python_full_version >= '3.12'
+    # via
+    #   blosc2
+    #   cachecontrol
+    #   mitmproxy
 multidict==6.7.1
     # via
     #   aiohttp
@@ -680,8 +759,6 @@ natsort==8.4.0
     # via domdf-python-tools
 ndindex==1.10.1
     # via blosc2
-netlib==0.14.0
-    # via mitmproxy
 networkx==3.6.1
     # via
     #   caveclient
@@ -707,7 +784,7 @@ numexpr==2.14.1
     # via
     #   blosc2
     #   tables
-numpy==2.4.5
+numpy==2.4.6
     # via
     #   abiss
     #   blosc2
@@ -843,14 +920,14 @@ opencv-python-headless==4.13.0.92
     # via
     #   imaug
     #   zetta-utils
-opentelemetry-api==1.41.1
+opentelemetry-api==1.42.1
     # via
     #   google-cloud-pubsub
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-sdk==1.41.1
+opentelemetry-sdk==1.42.1
     # via google-cloud-pubsub
-opentelemetry-semantic-conventions==0.62b1
+opentelemetry-semantic-conventions==0.63b1
     # via opentelemetry-sdk
 orderedmultidict==1.0.2
     # via furl
@@ -890,8 +967,8 @@ pandas==2.3.3
     #   zetta-utils
 parso==0.8.7
     # via jedi
-passlib==1.7.4
-    # via netlib
+passlib==1.7.4 ; python_full_version < '3.12'
+    # via mitmproxy
 pathos==0.3.5
     # via
     #   cloud-files
@@ -922,7 +999,6 @@ pillow==12.2.0
     #   imaug
     #   intern
     #   matplotlib
-    #   mitmproxy
     #   neuroglancer
     #   scikit-image
     #   tensorboard
@@ -996,6 +1072,8 @@ psycopg2-binary==2.9.12
     # via zetta-utils
 ptyprocess==0.7.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
     # via pexpect
+publicsuffix2==2.20191221
+    # via mitmproxy
 pure-eval==0.2.3
     # via stack-data
 py-cpuinfo==9.0.0
@@ -1004,15 +1082,16 @@ pyarrow==24.0.0
     # via caveclient
 pyasn1==0.6.3
     # via
-    #   mitmproxy
-    #   netlib
+    #   ldap3
     #   oauth2client
     #   pyasn1-modules
     #   rsa
+    #   service-identity
 pyasn1-modules==0.4.2
     # via
     #   google-auth
     #   oauth2client
+    #   service-identity
 pybind11==3.0.4
     # via
     #   crackle-codec
@@ -1023,12 +1102,20 @@ pycollada==0.9.3
     # via trimesh
 pycparser==3.0 ; implementation_name != 'PyPy'
     # via cffi
-pydantic==2.13.4
+pydantic==2.11.10 ; python_full_version == '3.12.*'
     # via
     #   blosc2
     #   wandb
-pydantic-core==2.46.4
+pydantic==2.13.4 ; python_full_version != '3.12.*'
+    # via
+    #   blosc2
+    #   wandb
+pydantic-core==2.33.2 ; python_full_version == '3.12.*'
     # via pydantic
+pydantic-core==2.46.4 ; python_full_version != '3.12.*'
+    # via pydantic
+pydivert==2.1.0 ; sys_platform == 'win32'
+    # via mitmproxy
 pydocstyle==6.3.0
     # via zetta-utils
 pyfqmr==0.5.0
@@ -1045,14 +1132,29 @@ pygments==2.20.0
     #   sphinx-tabs
 pylint==4.0.5
     # via zetta-utils
-pyopenssl==26.2.0
-    # via netlib
-pyparsing==3.3.2
+pylsqpack==0.3.24
+    # via aioquic
+pyopenssl==24.3.0 ; python_full_version < '3.12'
+    # via
+    #   aioquic
+    #   mitmproxy
+pyopenssl==26.2.0 ; python_full_version >= '3.12'
+    # via
+    #   aioquic
+    #   mitmproxy
+pyparsing==3.2.0 ; python_full_version < '3.12'
     # via
     #   httplib2
     #   matplotlib
     #   mitmproxy
-pyperclip==1.11.0
+pyparsing==3.3.2 ; python_full_version >= '3.12'
+    # via
+    #   httplib2
+    #   matplotlib
+    #   mitmproxy
+pyperclip==1.9.0 ; python_full_version < '3.12'
+    # via mitmproxy
+pyperclip==1.11.0 ; python_full_version >= '3.12'
     # via mitmproxy
 pyreadline3==3.5.6 ; sys_platform == 'win32'
     # via tabcompleter
@@ -1090,7 +1192,7 @@ python-jsonschema-objects==0.5.7
     # via cloud-volume
 python-logging-loki==0.3.1
     # via zetta-utils
-pytorch-lightning==2.6.1
+pytorch-lightning==2.6.4
     # via lightning
 pytz==2026.2
     # via
@@ -1151,7 +1253,7 @@ requests-oauthlib==1.3.1
     #   google-auth-oauthlib
     #   kubernetes
     #   zetta-utils
-responses==0.26.0
+responses==0.26.1
     # via moto
 rfc3339==6.2
     # via python-logging-loki
@@ -1172,9 +1274,15 @@ rsa==4.7.2
     #   oauth2client
 rtree==1.4.1
     # via trimesh
-ruamel-yaml==0.18.16
-    # via sphinx-toolbox
-ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
+ruamel-yaml==0.18.6 ; python_full_version < '3.12'
+    # via
+    #   mitmproxy
+    #   sphinx-toolbox
+ruamel-yaml==0.19.1 ; python_full_version >= '3.12'
+    # via
+    #   mitmproxy
+    #   sphinx-toolbox
+ruamel-yaml-clib==0.2.15 ; python_full_version < '3.12' and platform_python_implementation == 'CPython'
     # via ruamel-yaml
 s3transfer==0.17.0
     # via
@@ -1205,6 +1313,8 @@ scramp==1.4.8
     # via pg8000
 sentry-sdk==2.60.0
     # via wandb
+service-identity==24.2.0
+    # via aioquic
 setuptools==81.0.0
     # via
     #   imagecorruptions-imaug
@@ -1232,22 +1342,22 @@ six==1.17.0
     #   imaug
     #   intern
     #   kubernetes
-    #   mitmproxy
-    #   netlib
     #   oauth2client
     #   orderedmultidict
     #   python-dateutil
-slack-sdk==3.41.0
+slack-sdk==3.42.0
     # via zetta-utils
 smmap==5.0.3
     # via gitdb
-snowballstemmer==3.0.1
+snowballstemmer==3.1.0
     # via
     #   pydocstyle
     #   sphinx
 sortedcontainers==2.4.0
-    # via intervaltree
-soupsieve==2.8.3
+    # via
+    #   intervaltree
+    #   mitmproxy
+soupsieve==2.8.4
     # via beautifulsoup4
 sphinx==6.2.1
     # via
@@ -1274,11 +1384,11 @@ sphinx-prompt==1.10.2
     # via
     #   sphinx-toolbox
     #   zetta-utils
-sphinx-tabs==3.4.5
+sphinx-tabs==3.4.7
     # via
     #   sphinx-toolbox
     #   zetta-utils
-sphinx-toolbox==4.1.2
+sphinx-toolbox==4.2.0
     # via zetta-utils
 sphinxcontrib-applehelp==2.0.0
     # via
@@ -1302,7 +1412,7 @@ sphinxcontrib-serializinghtml==2.0.0
     # via
     #   sphinx
     #   zetta-utils
-sqlalchemy==2.0.49
+sqlalchemy==2.0.50
     # via zetta-utils
 sqlitedict==2.1.0
     # via pcg-skel
@@ -1334,6 +1444,12 @@ tensorboard==2.20.0
     # via cutie
 tensorboard-data-server==0.7.2
     # via tensorboard
+tensorrt-cu13==10.16.1.11 ; python_full_version < '3.14'
+    # via zetta-utils
+tensorrt-cu13-bindings==10.16.1.11 ; python_full_version < '3.14'
+    # via tensorrt-cu13
+tensorrt-cu13-libs==10.16.1.11 ; python_full_version < '3.14'
+    # via tensorrt-cu13
 tensorstore==0.1.79
     # via zetta-utils
 testcontainers==4.14.2
@@ -1383,7 +1499,11 @@ torchvision==0.27.0
     #   onnx2torch
     #   thinplate
     #   zetta-utils
-tornado==6.5.5
+tornado==6.4.2 ; python_full_version < '3.12'
+    # via
+    #   mitmproxy
+    #   neuroglancer
+tornado==6.5.5 ; python_full_version >= '3.12'
     # via
     #   mitmproxy
     #   neuroglancer
@@ -1423,7 +1543,7 @@ types-requests==2.33.0.20260518
     # via zetta-utils
 types-tabulate==0.10.0.20260508
     # via zetta-utils
-typing-extensions==4.15.0
+typing-extensions==4.14.0 ; python_full_version == '3.12.*'
     # via
     #   aiosignal
     #   anyio
@@ -1431,9 +1551,9 @@ typing-extensions==4.15.0
     #   black
     #   domdf-python-tools
     #   grpcio
-    #   ipython
     #   lightning
     #   lightning-utilities
+    #   mitmproxy
     #   mypy
     #   onnx
     #   opentelemetry-api
@@ -1451,6 +1571,34 @@ typing-extensions==4.15.0
     #   typeguard
     #   typing-inspection
     #   wandb
+typing-extensions==4.15.0 ; python_full_version != '3.12.*'
+    # via
+    #   aiosignal
+    #   anyio
+    #   beautifulsoup4
+    #   black
+    #   domdf-python-tools
+    #   grpcio
+    #   ipython
+    #   lightning
+    #   lightning-utilities
+    #   mypy
+    #   onnx
+    #   opentelemetry-api
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   pydantic
+    #   pydantic-core
+    #   pytorch-lightning
+    #   referencing
+    #   sphinx-toolbox
+    #   sqlalchemy
+    #   testcontainers
+    #   torch
+    #   typeguard
+    #   typing-inspection
+    #   urwid
+    #   wandb
 typing-inspection==0.4.2
     # via pydantic
 tzdata==2026.2
@@ -1462,7 +1610,7 @@ tzlocal==5.3.1
     # via clickhouse-driver
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.7.0
+urllib3==2.5.0 ; python_full_version < '3.12'
     # via
     #   botocore
     #   caveclient
@@ -1477,13 +1625,30 @@ urllib3==2.7.0
     #   sphinx-prompt
     #   testcontainers
     #   types-requests
-urwid==4.0.0
+urllib3==2.7.0 ; python_full_version >= '3.12'
+    # via
+    #   botocore
+    #   caveclient
+    #   clickhouse-connect
+    #   cloud-files
+    #   cloud-volume
+    #   docker
+    #   kubernetes
+    #   requests
+    #   responses
+    #   sentry-sdk
+    #   sphinx-prompt
+    #   testcontainers
+    #   types-requests
+urwid==2.6.16 ; python_full_version < '3.12'
+    # via mitmproxy
+urwid==3.0.5 ; python_full_version >= '3.12'
     # via mitmproxy
 vhacdx==0.0.10
     # via trimesh
 virtualenv==21.3.3
     # via pre-commit
-wandb==0.26.1
+wandb==0.27.0
     # via zetta-utils
 waterz @ git+https://github.com/ZettaAI/waterz.git@90898fbf18823112bc67c324f8f363f062b98d4e
     # via zetta-utils
@@ -1508,8 +1673,12 @@ widgetsnbextension==4.0.15
     # via ipywidgets
 witty==0.3.1
     # via waterz
-wrapt==2.1.2
+wrapt==2.2.1
     # via testcontainers
+wsproto==1.2.0 ; python_full_version < '3.12'
+    # via mitmproxy
+wsproto==1.3.2 ; python_full_version >= '3.12'
+    # via mitmproxy
 xmltodict==1.0.4
     # via moto
 xs3d==1.13.0
@@ -1518,24 +1687,31 @@ xxhash==3.2.0
     # via
     #   trimesh
     #   zetta-utils
-yarl==1.23.0
+yarl==1.24.2
     # via aiohttp
 zfpc==0.1.2
     # via cloud-volume
 zfpy==1.0.1
     # via zfpc
-zipp==3.23.1
-    # via importlib-metadata
 zmesh==1.13.1
     # via zetta-utils
 zope-event==6.2
     # via gevent
-zope-interface==8.4
+zope-interface==8.5
     # via gevent
-zstandard==0.25.0
+zstandard==0.23.0 ; python_full_version < '3.12'
     # via
     #   clickhouse-connect
     #   cloud-files
     #   cloud-volume
     #   mapbuffer
+    #   mitmproxy
+    #   zetta-utils
+zstandard==0.25.0 ; python_full_version >= '3.12'
+    # via
+    #   clickhouse-connect
+    #   cloud-files
+    #   cloud-volume
+    #   mapbuffer
+    #   mitmproxy
     #   zetta-utils

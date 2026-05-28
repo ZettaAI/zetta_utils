@@ -736,11 +736,19 @@ def main():
         )
 
     if not args.skip_pip:
+        # By default we suppress pip/uv wheel caches to keep on-host and
+        # CI installs from doubling disk usage. Docker builds opt back in
+        # via ZETTA_USE_PIP_CACHE=1 so the BuildKit cache mounts on
+        # /root/.cache/{pip,uv} actually get used.
+        use_cache = bool(os.environ.get("ZETTA_USE_PIP_CACHE"))
+        pip_no_cache = "" if use_cache else "--no-cache-dir"
+        uv_no_cache = "" if use_cache else "--no-cache"
+
         # uv ignores `Requires-Python` upper bounds in package metadata
         # for better or for worse. Helps with poorly maintained packages,
         # but breaks if the bound was there for good reason
         run_command(
-            "pip install --no-cache-dir -q uv",
+            f"pip install {pip_no_cache} -q uv",
             "Installing uv",
         )
 
@@ -752,7 +760,7 @@ def main():
                 "Install graph-tool via conda",
             )
             run_command(
-                f"uv pip install --no-cache --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
+                f"uv pip install {uv_no_cache} --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
                 "Install PCG package (no deps)",
             )
 
@@ -768,7 +776,8 @@ def main():
             )
 
         run_command(
-            f"uv pip install --no-cache --no-deps -r {requirements_file} && uv pip install --no-cache --no-deps -e .",
+            f"uv pip install {uv_no_cache} --no-deps -r {requirements_file} && "
+            f"uv pip install {uv_no_cache} --no-deps -e .",
             "Installing pinned dependencies and zetta_utils package",
         )
 

@@ -46,7 +46,7 @@ version = "0.0.2"
 [project.optional-dependencies]
 alignment = [
   "opencv-python-headless >= 4.5.5",
-  "torch >= 2.11",
+  "torch >= 2.5",
 ]
 all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
@@ -100,7 +100,7 @@ chunkedgraph = [
   # Note: graph_tool must be installed separately via conda:
   # conda install -c conda-forge graph-tool-base
 ]
-convnet = ["torch >= 2.11", "onnx2torch", "nvidia-ml-py >= 13.580"]
+convnet = ["torch >= 2.5", "onnx2torch", "nvidia-ml-py >= 13.580"]
 databackends = [
   "google-cloud-datastore",
   "google-cloud-firestore"
@@ -179,7 +179,7 @@ modules = [
   "zetta_utils[chunkedgraph]",
   "zetta_utils[gpu]",
 ]
-montaging = ["zetta_utils[cloudvol, databackends, mazepa]", "torch >= 2.11"]
+montaging = ["zetta_utils[cloudvol, databackends, mazepa]", "torch >= 2.5"]
 public = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
@@ -231,7 +231,7 @@ tensor-ops = [
   "scikit-image >= 0.25.0",  # footprint_rectangle
 ]
 
-tensor-typing = ["torch >= 2.11", "numpy"]
+tensor-typing = ["torch >= 2.5", "numpy"]
 
 test = [
   "zetta_utils[types]",
@@ -253,7 +253,7 @@ test = [
 ]
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
-  "torch >= 2.11",
+  "torch >= 2.5",
   "lightning ~= 2.2",
   "torchmetrics >= 0.11.4",
   "wandb >= 0.13.1",

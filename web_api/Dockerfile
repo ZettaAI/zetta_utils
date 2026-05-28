@@ -19,7 +19,7 @@ ENV PIP_DEFAULT_TIMEOUT=300 \
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt \
-    && pip install -r requirements.modules.txt \
+    && pip install --no-deps -r requirements.modules.txt \
     && pip install --no-deps .
 
 # cchardet==2.1.7 does not build on Py3.12+ (API removals). Cutie declares

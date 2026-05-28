@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1.4
+# CPU-only Dockerfile tuned for layer + BuildKit cache reuse on repeated builds.
+# Semantically equivalent to ./Dockerfile; the difference is layer ordering and
+# extra cache mounts so unrelated source edits don't invalidate the pip layers.
+FROM python:3.12
+
+ENV PYTHONPATH=/opt/http
+WORKDIR /opt/http
+
+# Keep apt's downloaded .debs and package lists in BuildKit caches across
+# builds (Debian's docker-clean hook deletes them by default).
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+    && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+        git ffmpeg libsm6 libxext6 unixodbc-dev libboost-dev curl ca-certificates
+
+# Copy only dependency manifests first so editing pyproject.toml or the source
+# tree does NOT invalidate the heavy pip layers below.
+COPY web_api/requirements.txt requirements.modules.txt /opt/http/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade 'pip>=25.2'
+
+ENV PIP_DEFAULT_TIMEOUT=300 \
+    PIP_RETRIES=20 \
+    PIP_RESUME_RETRIES=20
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt \
+    && pip install --no-deps -r requirements.modules.txt
+
+# cchardet==2.1.7 does not build on Py3.12+ (API removals). Cutie declares
+# `cchardet >= 2.1.7`, so install an empty stub to satisfy the requirement
+# and faust-cchardet to provide the actual top-level `cchardet` module.
+RUN mkdir -p /tmp/cc_stub \
+    && printf 'from setuptools import setup\nsetup(name="cchardet", version="2.1.7", py_modules=[])\n' > /tmp/cc_stub/setup.py \
+    && pip install --no-deps /tmp/cc_stub \
+    && rm -rf /tmp/cc_stub
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install faust-cchardet
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install "cutie @ git+https://github.com/hkchengrex/Cutie.git"
+
+# cue CLI – curl was already installed above so this is a single small layer.
+RUN curl -fsSL https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz \
+       | tar xz -C /usr/local/bin cue
+
+# Project metadata last among pip steps – editing pyproject.toml only
+# invalidates from here, not the multi-GB wheel installs above.
+COPY pyproject.toml /opt/http/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-deps .
+
+COPY . /opt/http
+RUN zetta --help
+
+WORKDIR /opt/http/web_api
+CMD ["hypercorn", "app.main:app", "--bind", "0.0.0.0:80"]

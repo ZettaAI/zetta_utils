@@ -13,11 +13,11 @@ def test_worker_app_exposes_healthz():
     assert "/healthz" in paths
 
 
-def test_worker_app_mounts_run_spec():
+def test_worker_app_exposes_run_spec():
     from web_api.app import worker
 
-    mount_paths = {route.path for route in worker.app.routes if isinstance(route, Mount)}
-    assert "/run_spec" in mount_paths
+    paths = {getattr(route, "path", None) for route in worker.app.routes}
+    assert "/run_spec/" in paths
 
 
 def test_worker_app_has_no_portal_routers():

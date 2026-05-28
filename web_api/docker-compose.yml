@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  web_api:
+    image: us-east1-docker.pkg.dev/zetta-research/zutils/web_api:latest
+    env_file: .env
+    environment:
+      - DB_HOST=host.docker.internal # for local development
+    ports:
+      - 8000:80
+
+  web_api_gpu:
+    image: us-east1-docker.pkg.dev/zetta-research/zutils/web_api_gpu:latest
+    env_file: .env
+    environment:
+      - DB_HOST=host.docker.internal # for local development
+    ports:
+      - 8000:80
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -115,6 +115,8 @@ def _make_scale(ref: dict[str, Any], target: Sequence[float] | dict[str, Any]) -
         ret["size"] = [math.ceil(k / m) for k, m in zip(ref["size"], multiplier)]
 
     if "voxel_offset" not in ret:
+        if "voxel_offset" not in ref:
+            ref["voxel_offset"] = [0, 0, 0]
         ret["voxel_offset"] = [k / m for k, m in zip(ref["voxel_offset"], multiplier)]
         for i in range(len(ret["voxel_offset"])):
             if not is_integer_within_eps(ret["voxel_offset"][i]):
@@ -208,6 +210,13 @@ class PrecomputedInfoSpec:
                     reference_info = get_info(self.extend_if_exists_path)
                     add_scales_mode = "extend"
                 except FileNotFoundError:
+                    if (
+                        self.reference_path is None
+                        and self.field_overrides is None
+                        and self.add_scales is None
+                        and self.only_retain_scales is None
+                    ):
+                        return None
                     reference_info = {}
 
             if self.reference_path is not None and reference_info == {}:

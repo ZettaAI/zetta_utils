@@ -7,6 +7,7 @@ import pytest
 from zetta_utils.geometry import IntVec3D
 from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.layer import precomputed
+from zetta_utils.layer.deprecated import precomputed as deprecated_precomputed
 from zetta_utils.layer.precomputed import InfoSpecParams, PrecomputedInfoSpec, get_info
 
 THIS_DIR = pathlib.Path(__file__).parent.resolve()
@@ -19,17 +20,52 @@ NONEXISTENT_LAYER_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "nonexis
 EXAMPLE_INFO = '{"data_type": "uint8", "num_channels": 1, "scales": [{"chunk_sizes": [[1024, 1024, 1]], "encoding": "raw", "key": "4_4_40", "resolution": [4, 4, 40], "size": [16384, 16384, 16384], "voxel_offset": [0, 0, 0]}, {"chunk_sizes": [[2048, 2048, 1]], "encoding": "raw", "key": "8_8_40", "resolution": [8, 8, 40], "size": [8192, 8192, 8192], "voxel_offset": [0, 0, 0]}], "type": "raw"}'
 
 _write_info_notmock = precomputed._write_info
+_deprecated_write_info_notmock = deprecated_precomputed._write_info
 
 
 @pytest.fixture
 def clear_caches_reset_mocks():
     precomputed._info_cache.clear()
     precomputed._write_info = _write_info_notmock
+    deprecated_precomputed._info_cache.clear()
+    deprecated_precomputed._write_info = _deprecated_write_info_notmock
 
 
 def test_nonexistent_info(clear_caches_reset_mocks):
     with pytest.raises(FileNotFoundError):
         precomputed.get_info(NONEXISTENT_LAYER_PATH)
+
+
+def test_deprecated_infospec_does_not_write_empty_info_for_missing_extend_path(
+    clear_caches_reset_mocks, mocker
+):
+    _write_info = mocker.MagicMock()
+    deprecated_precomputed._write_info = _write_info
+    mocker.patch.object(deprecated_precomputed, "get_info", side_effect=FileNotFoundError)
+    info_spec = deprecated_precomputed.PrecomputedInfoSpec(
+        extend_if_exists_path=NONEXISTENT_LAYER_PATH,
+    )
+
+    with pytest.raises(RuntimeError):
+        info_spec.update_info(path=NONEXISTENT_LAYER_PATH, on_info_exists="extend")
+
+    _write_info.assert_not_called()
+
+
+def test_deprecated_make_scale_defaults_missing_ref_voxel_offset(clear_caches_reset_mocks):
+    scale = deprecated_precomputed._make_scale(
+        ref={
+            "chunk_sizes": [[1024, 1024, 1]],
+            "encoding": "raw",
+            "key": "4_4_40",
+            "resolution": [4, 4, 40],
+            "size": [16384, 16384, 16384],
+        },
+        target=[8, 8, 40],
+    )
+
+    assert scale["voxel_offset"] == [0, 0, 0]
+    assert scale["size"] == [8192, 8192, 16384]
 
 
 @pytest.mark.parametrize(

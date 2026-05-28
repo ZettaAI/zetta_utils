@@ -88,7 +88,7 @@ def update_latest(variant: str, full_tag: str, project: str, region: str, repo: 
     return run_shell(f"docker push {dst}") == 0
 
 
-def main() -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build and push web_api docker images (CPU and/or GPU)."
     )
@@ -128,67 +128,97 @@ def main() -> int:
         action="store_true",
         help="Skip tagging and pushing the :latest image (default: push :latest on --bump/--rebuild).",
     )
+    return parser
 
-    args = parser.parse_args()
 
+def _resolve_tag(args):
     if args.tag:
-        full_tag = args.tag
-        new_semver = None
-    else:
-        current = read_version()
-        new_semver = bump_semver(current, args.bump) if args.bump else current
-        date_str = datetime.now().strftime("%Y%m%d")
-        build_num = next_build_number(new_semver, date_str)
-        full_tag = f"{new_semver}-{date_str}{build_num:02d}"
-        if args.bump:
-            print(f"Semver bump: {current} -> {new_semver}")
+        return args.tag, None
+    current = read_version()
+    new_semver = bump_semver(current, args.bump) if args.bump else current
+    date_str = datetime.now().strftime("%Y%m%d")
+    build_num = next_build_number(new_semver, date_str)
+    full_tag = f"{new_semver}-{date_str}{build_num:02d}"
+    if args.bump:
+        print(f"Semver bump: {current} -> {new_semver}")
+    return full_tag, new_semver
 
-    print(f"Target tag: {full_tag}")
-    variants = ["cpu", "gpu"] if args.variant == "both" else [args.variant]
-    print(f"Variants: {variants}")
 
-    if not args.no_build:
-        for v in variants:
-            if not build_variant(v, full_tag, args.project, args.region, args.repo):
-                print(f"Build failed for {v}, exiting.")
-                return 1
+def _run_builds(variants, full_tag, args) -> bool:
+    for v in variants:
+        if not build_variant(v, full_tag, args.project, args.region, args.repo):
+            print(f"Build failed for {v}, exiting.")
+            return False
+    return True
 
-    if args.no_push:
-        return 0
 
+def _run_pushes(variants, full_tag, args) -> bool:
     for v in variants:
         if not push_variant(v, full_tag, args.project, args.region, args.repo):
             print(f"Push failed for {v}, exiting.")
-            return 1
+            return False
+    return True
 
-    if not args.tag and not args.no_latest:
-        for v in variants:
-            if not update_latest(v, full_tag, args.project, args.region, args.repo):
-                print(f"Failed to update :latest for {v}, exiting.")
-                return 1
 
-    if args.bump:
-        write_version(new_semver)
-        print(f"Updated VERSION file to {new_semver}.")
-        if not args.no_commit:
-            if subprocess.call(["git", "add", str(VERSION_FILE)]) != 0:
-                print("git add failed.")
-                return 1
-            msg = f"chore: bump web_api version to {new_semver}"
-            if subprocess.call(["git", "commit", "-m", msg]) != 0:
-                print("git commit failed.")
-                return 1
+def _run_latest(variants, full_tag, args) -> bool:
+    for v in variants:
+        if not update_latest(v, full_tag, args.project, args.region, args.repo):
+            print(f"Failed to update :latest for {v}, exiting.")
+            return False
+    return True
 
-    if not args.tag:
-        git_tag = f"{GIT_TAG_PREFIX}{full_tag}"
-        print(f"Creating git tag {git_tag}.")
-        if subprocess.call(["git", "tag", git_tag]) != 0:
-            print("git tag failed.")
-            return 1
-        if subprocess.call(["git", "push", "origin", git_tag]) != 0:
-            print("git tag push failed.")
-            return 1
 
+def _write_and_commit_version(new_semver, no_commit: bool) -> bool:
+    write_version(new_semver)
+    print(f"Updated VERSION file to {new_semver}.")
+    if no_commit:
+        return True
+    if subprocess.call(["git", "add", str(VERSION_FILE)]) != 0:
+        print("git add failed.")
+        return False
+    msg = f"chore: bump web_api version to {new_semver}"
+    if subprocess.call(["git", "commit", "-m", msg]) != 0:
+        print("git commit failed.")
+        return False
+    return True
+
+
+def _create_and_push_git_tag(full_tag: str) -> bool:
+    git_tag = f"{GIT_TAG_PREFIX}{full_tag}"
+    print(f"Creating git tag {git_tag}.")
+    if subprocess.call(["git", "tag", git_tag]) != 0:
+        print("git tag failed.")
+        return False
+    if subprocess.call(["git", "push", "origin", git_tag]) != 0:
+        print("git tag push failed.")
+        return False
+    return True
+
+
+def _run_post_build(variants, full_tag, args, new_semver) -> bool:
+    if not _run_pushes(variants, full_tag, args):
+        return False
+    if not args.tag and not args.no_latest and not _run_latest(variants, full_tag, args):
+        return False
+    if args.bump and not _write_and_commit_version(new_semver, args.no_commit):
+        return False
+    if not args.tag and not _create_and_push_git_tag(full_tag):
+        return False
+    return True
+
+
+def main() -> int:
+    args = _build_parser().parse_args()
+    full_tag, new_semver = _resolve_tag(args)
+    print(f"Target tag: {full_tag}")
+    variants = ["cpu", "gpu"] if args.variant == "both" else [args.variant]
+    print(f"Variants: {variants}")
+    if not args.no_build and not _run_builds(variants, full_tag, args):
+        return 1
+    if args.no_push:
+        return 0
+    if not _run_post_build(variants, full_tag, args, new_semver):
+        return 1
     return 0
 
 

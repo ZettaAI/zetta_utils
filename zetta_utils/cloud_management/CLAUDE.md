@@ -52,7 +52,7 @@ The `zetta run-update <run_id> -g <group> --max-workers N` CLI patches these dir
 
 ### Manual node-pool pestering
 
-`zetta pester-nodes <run_id> -g <worker-group> -n <additional_per_zone>` discovers the pool(s) currently hosting the group's pods (by reading the `cloud.google.com/gke-nodepool` label off each scheduled pod's node) and re-issues `SetNodePoolSize(current + N)` on each every `--interval-sec` until pending replicas hit zero or the user sends SIGINT. Use this when CA's backoff window stretches longer than acceptable.
+`zetta pester-nodes <run_id> [-g <worker-group>] -n <additional_per_zone>` discovers the pool(s) currently hosting the group's pods (by reading the `cloud.google.com/gke-nodepool` label off each scheduled pod's node) and re-issues `SetNodePoolSize(current + N)` on each every `--interval-sec` until pending replicas hit zero or the user sends SIGINT. Use this when CA's backoff window stretches longer than acceptable. Pass `--pool NAME` (repeatable) to bypass pod-based discovery when *zero* pods have scheduled yet (pure cold-start stockout). `-g` is optional; when omitted the deployment is resolved by `run_id` alone (must match exactly one).
 
 ### Authentication
 

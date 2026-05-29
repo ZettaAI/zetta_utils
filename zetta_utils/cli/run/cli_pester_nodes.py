@@ -36,8 +36,9 @@ def pester_nodes_cli():
     "-g",
     "--worker-group",
     type=str,
-    required=True,
-    help="Worker group name to pester pools for.",
+    default=None,
+    help="Worker group name to pester pools for. Optional; if omitted, the "
+    "deployment is resolved by run_id alone (must match exactly one).",
 )
 @click.option(
     "-n",
@@ -45,6 +46,16 @@ def pester_nodes_cli():
     type=int,
     required=True,
     help="Per-zone nodes to add per pool on top of its current size.",
+)
+@click.option(
+    "-p",
+    "--pool",
+    "pools",
+    type=str,
+    multiple=True,
+    help="Node pool name to pester (repeatable). When given, skips pod-based "
+    "pool discovery — useful in pure-stockout cases where no pod has scheduled "
+    "yet, so the pool's gke-nodepool label is not observable on any node.",
 )
 @click.option("--cluster-name", type=str, default=None, help="Cluster name (default: env config).")
 @click.option("--cluster-region", type=str, default=None, help="Cluster region.")
@@ -57,8 +68,9 @@ def pester_nodes_cli():
 )
 def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
     run_id: str,
-    worker_group: str,
+    worker_group: str | None,
     additional_nodes: int,
+    pools: tuple[str, ...],
     cluster_name: str | None,
     cluster_region: str | None,
     cluster_project: str | None,
@@ -76,6 +88,10 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
     Re-issuing is idempotent — when GCE's underlying MIG resize fails
     transiently (capacity exhausted), repeated calls give it fresh chances
     once capacity opens up.
+
+    Pass ``--pool`` (repeatable) to skip pod-based discovery and target
+    explicit pools — required when no pod has scheduled yet (pure stockout
+    from a cold start).
     """
     cluster_info = parse_cluster_info(cluster_name, cluster_region, cluster_project)
     if cluster_info.project is None or cluster_info.region is None:  # pragma: no cover
@@ -91,19 +107,25 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
     core_api = k8s_client.CoreV1Api()
     apps_api = k8s_client.AppsV1Api()
 
-    group_label = worker_group.replace("_", "-")
-    label_selector = f"run_id={run_id},worker_group={group_label}"
+    selector_parts = [f"run_id={run_id}"]
+    if worker_group is not None:
+        selector_parts.append(f"worker_group={worker_group.replace('_', '-')}")
+    label_selector = ",".join(selector_parts)
 
     deployment_name = _resolve_deployment(apps_api, label_selector, run_id, worker_group)
 
-    pool_names = _resolve_pools_from_pods(core_api, label_selector)
-    if not pool_names:
-        raise click.UsageError(
-            f"No scheduled pods found for run_id={run_id!r} "
-            f"worker_group={group_label!r}; cannot infer pools. "
-            f"Wait until at least one pod is running, then re-run."
-        )
-    click.echo(f"Discovered pools: {sorted(pool_names)}")
+    if pools:
+        pool_names: set[str] = set(pools)
+        click.echo(f"Using explicit pools: {sorted(pool_names)}")
+    else:
+        pool_names = _resolve_pools_from_pods(core_api, label_selector)
+        if not pool_names:
+            raise click.UsageError(
+                f"No scheduled pods found for {label_selector!r}; cannot infer "
+                f"pools. Wait until at least one pod is running, or pass "
+                f"--pool NAME (repeatable) to specify them explicitly."
+            )
+        click.echo(f"Discovered pools: {sorted(pool_names)}")
 
     targets = _compute_targets(project, region, cluster, pool_names, additional_nodes)
     if not targets:
@@ -147,7 +169,10 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 def _resolve_deployment(
-    apps_api: k8s_client.AppsV1Api, label_selector: str, run_id: str, worker_group: str
+    apps_api: k8s_client.AppsV1Api,
+    label_selector: str,
+    run_id: str,
+    worker_group: str | None,
 ) -> str:
     deps = apps_api.list_namespaced_deployment(
         namespace="default", label_selector=label_selector
@@ -198,7 +223,13 @@ def _compute_targets(
             click.echo(f"  pool {name!r} not found in cluster; skipping")
             continue
         current = pool.initial_node_count
-        max_size = pool.autoscaling.max_node_count if pool.autoscaling else None
+        # Pool autoscaling caps the size with either per-zone `max_node_count`
+        # OR regional `total_max_node_count` (mutually exclusive; the unset one
+        # defaults to 0 in proto). Prefer whichever is nonzero.
+        autoscaling = pool.autoscaling
+        per_zone_max = autoscaling.max_node_count if autoscaling else 0
+        total_max = autoscaling.total_max_node_count if autoscaling else 0
+        max_size = per_zone_max or total_max or None
         target = current + additional_nodes
         if max_size is not None:
             if current >= max_size:

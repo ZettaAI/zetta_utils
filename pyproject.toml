@@ -206,7 +206,7 @@ calcada = [
   "cloud-sql-python-connector[pg8000] >= 1.0.0",
 ]
 gpu = [
-  "tensorrt-cu13 >= 10.13 ; python_version < '3.14'",  # no wheels for 3.14, yet
+  "tensorrt-cu13 >= 10.13 ; python_version < '3.14' and sys_platform == 'linux' and platform_machine == 'x86_64'",  # no wheels for 3.14, yet, no wheels for other platforms
 ]
 skeletonization = [
   "zetta_utils[cloudvol, databackends, mazepa]",
@@ -289,6 +289,24 @@ py-modules = ["zetta_utils"]
 override-dependencies = [
   "click~=8.0.1",
 ]
+
+# tensorrt-cu13* use the `wheel_stub` build backend, which fetches a real
+# wheel from pypi.nvidia.com matching the *host* platform during metadata
+# extraction. NVIDIA only ships Linux x86_64 wheels, so `uv lock` fails on
+# macOS arm64 even though the runtime marker restricts install to Linux.
+# Providing static metadata lets uv resolve without invoking the build
+# backend; pip still pulls sub-package deps from the index at install time.
+[[tool.uv.dependency-metadata]]
+name = "tensorrt-cu13"
+requires-dist = []
+
+[[tool.uv.dependency-metadata]]
+name = "tensorrt-cu13-libs"
+requires-dist = []
+
+[[tool.uv.dependency-metadata]]
+name = "tensorrt-cu13-bindings"
+requires-dist = []
 
 [tool.black]
 line-length = 99

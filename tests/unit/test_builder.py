@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import dill
+import numpy as np
 import pytest
 
 from zetta_utils import builder
@@ -295,6 +296,17 @@ def test_build_partial_invocation(register_dummy_a, register_dummy_c):
 )
 def test_lambda(spec: dict, arg: Any, expected: Any):
     assert builder.build(spec)(arg) == expected
+
+
+def test_lambda_np():
+    spec = {"@type": "lambda", "lambda_str": "lambda x: np.where(x == 0, 1, x)"}
+    result = builder.build(spec)(np.array([0, 2, 0]))
+    assert result.tolist() == [1, 2, 1]
+
+
+def test_lambda_torch():
+    spec = {"@type": "lambda", "lambda_str": "lambda: torch.full((2,), 42, dtype=torch.uint8)"}
+    assert builder.build(spec)().tolist() == [42, 42]
 
 
 @pytest.mark.parametrize(

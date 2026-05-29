@@ -168,7 +168,7 @@ def _setup_auto(
                 "auto preload: spec contains dynamic @type values; "
                 "lookup-miss fallback will handle them at build time."
             )
-        preload_modules = compute_preload_set(scan_result.names())
+        preload_modules = compute_preload_set(scan_result.names(), scan_result.lambda_strs)
         logger.info(
             f"auto preload (computed): {len(preload_modules)} module(s) "
             f"({len(scan_result.types)} @type refs in spec)"
@@ -179,8 +179,7 @@ def _setup_auto(
     _spawn_forkserver_with_modules(preload_modules)
     _wait_for_forkserver_ready()
     logger.info(
-        f"Forkserver initialized in "
-        f"{time.perf_counter() - forkserver_start:.2f}s (mode: auto)"
+        f"Forkserver initialized in " f"{time.perf_counter() - forkserver_start:.2f}s (mode: auto)"
     )
     return True
 

@@ -13,6 +13,7 @@ default expectation is that a module's only import-time effect is registration.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 
 ALWAYS_EAGER: tuple[str, ...] = (
     "zetta_utils.parallel",  # patches multiprocessing.forkserver
@@ -23,7 +24,27 @@ ALWAYS_EAGER: tuple[str, ...] = (
 logger = logging.getLogger(__name__)
 
 
-def compute_preload_set(type_names: set[str] | list[str]) -> list[str]:
+def lambda_preload_modules(lambda_strs: Iterable[str]) -> list[str]:
+    """Module names referenced inside lambda strings (e.g. numpy, torch).
+
+    A lambda's @type is "lambda", so the libraries it uses never surface via
+    @type resolution. Preloading them into the forkserver template lets workers
+    inherit them copy-on-write instead of each importing a private copy on the
+    first lambda invocation.
+    """
+    # pylint: disable=import-outside-toplevel
+    from zetta_utils.builder.built_in_registrations import lambda_referenced_libs
+
+    needed: set[str] = set()
+    for lambda_str in lambda_strs:
+        needed.update(module for _alias, module in lambda_referenced_libs(lambda_str))
+    return sorted(needed)
+
+
+def compute_preload_set(
+    type_names: set[str] | list[str],
+    lambda_strs: Iterable[str] = (),
+) -> list[str]:
     """Resolve @type names to module paths via the static registry index.
 
     Returns a deterministically ordered list: ALWAYS_EAGER first (preserving
@@ -33,6 +54,8 @@ def compute_preload_set(type_names: set[str] | list[str]) -> list[str]:
     at lookup time.
 
     :param type_names: Iterable of @type values extracted from a spec.
+    :param lambda_strs: Iterable of `lambda_str` values from the spec; modules
+        they reference (numpy/torch) are added to the preload set.
     :return: Module paths to feed to multiprocessing.set_forkserver_preload().
     """
     # pylint: disable=import-outside-toplevel
@@ -57,6 +80,8 @@ def compute_preload_set(type_names: set[str] | list[str]) -> list[str]:
             len(unresolved),
             sorted(unresolved)[:10],
         )
+
+    resolved.update(lambda_preload_modules(lambda_strs))
 
     # ALWAYS_EAGER is also imported by preload.none, but listing it explicitly
     # here documents intent for direct callers of set_forkserver_preload().

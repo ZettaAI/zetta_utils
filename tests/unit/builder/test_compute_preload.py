@@ -1,7 +1,11 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from zetta_utils.builder.preload import ALWAYS_EAGER, compute_preload_set
+from zetta_utils.builder.preload import (
+    ALWAYS_EAGER,
+    compute_preload_set,
+    lambda_preload_modules,
+)
 
 
 def test_always_eager_first_then_sorted_extras():
@@ -57,3 +61,30 @@ def test_eager_modules_not_duplicated_in_extras():
     eager_set = set(ALWAYS_EAGER)
     extras = [m for m in result if m not in eager_set]
     assert all(m not in eager_set for m in extras)
+
+
+def test_lambda_preload_modules_detects_np_and_torch():
+    assert lambda_preload_modules(["lambda x: np.where(x == 0, 1, x)"]) == ["numpy"]
+    assert lambda_preload_modules(["lambda: torch.zeros(3)"]) == ["torch"]
+    assert lambda_preload_modules(["lambda x, y: np.add(x, torch.ones(y))"]) == [
+        "numpy",
+        "torch",
+    ]
+    assert lambda_preload_modules(["lambda x: x + 1"]) == []
+
+
+def test_lambda_preload_modules_word_boundary():
+    # Substrings like 'snp' / 'torcher' must not trigger a spurious preload.
+    assert lambda_preload_modules(["lambda snp: snp + torcher"]) == []
+
+
+def test_lambda_strs_add_modules_to_preload_set():
+    result = compute_preload_set(set(), lambda_strs=["lambda x: np.where(x == 0, 1, x)"])
+    assert "numpy" in result
+    assert "torch" not in result
+    assert result[: len(ALWAYS_EAGER)] == list(ALWAYS_EAGER)
+
+
+def test_lambda_strs_default_empty():
+    """Omitting lambda_strs leaves the @type-derived preload set unchanged."""
+    assert compute_preload_set({"definitely_not_registered_xyz"}) == list(ALWAYS_EAGER)

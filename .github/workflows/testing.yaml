@@ -499,6 +499,10 @@ jobs:
           # pytorch CPU wheel index, not PyPI.
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
           UV_INDEX: https://download.pytorch.org/whl/cpu
+          # The pytorch index mirrors common packages (e.g. certifi) at older
+          # versions; uv's default first-index strategy would stop there. Allow
+          # searching all (trusted) indexes so exact pins resolve from PyPI too.
+          UV_INDEX_STRATEGY: unsafe-best-match
         run: |
           # cutie declares cchardet (pruned, doesn't build on 3.12+). The pinned
           # requirements install with --no-deps, so the requirement is skipped;

@@ -26,6 +26,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---- Copy metadata ---------------------------------------------------
 COPY pyproject.toml /opt/http/
 
+# cutie declares cchardet>=2.1.7, which does not build on the base image's
+# Python. Install an empty stub to satisfy the requirement (so the resolution
+# install below does not try to build the real one) plus faust-cchardet to
+# provide the actual top-level `cchardet` module.
+RUN mkdir -p /tmp/cc_stub \
+    && printf 'from setuptools import setup\nsetup(name="cchardet", version="2.1.7", py_modules=[])\n' > /tmp/cc_stub/setup.py \
+    && pip install --no-deps /tmp/cc_stub \
+    && rm -rf /tmp/cc_stub
+RUN --mount=type=cache,target=/root/.cache/pip pip install faust-cchardet
+
 # ---- Install project + web_api-gpu extra -----------------------------
 RUN --mount=type=cache,target=/root/.cache/pip pip install '.[web_api-gpu]'
 

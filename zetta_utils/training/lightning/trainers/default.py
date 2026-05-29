@@ -538,10 +538,16 @@ class ConfigureLogging(pl.callbacks.Callback):
         if trainer.global_rank != 0:
             return
 
-        if trainer.logger and trainer.logger.experiment:
-            this_dir = os.path.dirname(os.path.abspath(__file__))
-            zetta_root_path = f"{this_dir}/../../.."
-            trainer.logger.experiment.log_code(zetta_root_path)
+        current_build_spec = os.environ.pop("CURRENT_BUILD_SPEC", None)
+        try:
+            experiment = trainer.logger.experiment if trainer.logger else None
+            if experiment:
+                this_dir = os.path.dirname(os.path.abspath(__file__))
+                zetta_root_path = f"{this_dir}/../../.."
+                experiment.log_code(zetta_root_path)
+        finally:
+            if current_build_spec is not None:
+                os.environ["CURRENT_BUILD_SPEC"] = current_build_spec
 
         def log_config(config):
             if self.exp_version.startswith("tmp"):

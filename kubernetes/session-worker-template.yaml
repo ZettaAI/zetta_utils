@@ -1,0 +1,39 @@
+# Worker Pod template. The session-master renders this at boot, substituting
+# ${SESSION_ID}, ${INITIAL_PRELOAD}, ${MASTER_POD_NAME}, ${MASTER_POD_UID}, and
+# ${SESSIONS_IMAGE_TAG}, then calls CoreV1Api().create_namespaced_pod(...).
+#
+# ownerReferences target the master Pod so K8s cascade-GC reaps the worker when
+# the master is gone.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: session-worker-${SESSION_ID}
+  namespace: sessions
+  labels:
+    app: session-worker
+    sessionId: ${SESSION_ID}
+  ownerReferences:
+  - apiVersion: v1
+    kind: Pod
+    name: ${MASTER_POD_NAME}
+    uid: ${MASTER_POD_UID}
+    controller: true
+    blockOwnerDeletion: true
+spec:
+  restartPolicy: Never
+  containers:
+  - name: session-worker
+    image: ${SESSIONS_IMAGE_TAG}
+    command: ["hypercorn", "app.worker:app", "--bind", "0.0.0.0:80"]
+    env:
+    - name: SESSION_ID
+      value: ${SESSION_ID}
+    - name: INITIAL_PRELOAD
+      value: ${INITIAL_PRELOAD}
+    - name: OAUTH_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: sessions-oauth
+          key: client-id
+    ports:
+    - containerPort: 80

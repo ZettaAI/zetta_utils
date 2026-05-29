@@ -3,7 +3,9 @@ Helpers for k8s service.
 """
 
 from contextlib import contextmanager
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
+
+from kubernetes.client.exceptions import ApiException
 
 from kubernetes import client as k8s_client
 from zetta_utils import log
@@ -45,6 +47,51 @@ def get_service(
     meta = k8s_client.V1ObjectMeta(annotations=annotations, labels=labels, name=name)
     service_spec = k8s_client.V1ServiceSpec(ports=ports, selector=selector, type=service_type)
     return k8s_client.V1Service(metadata=meta, spec=service_spec)
+
+
+def create_namespaced_service(
+    *,
+    namespace: str,
+    body: Mapping,
+    k8s_core_v1_api: k8s_client.CoreV1Api | None = None,
+) -> k8s_client.V1Service:
+    """Create a Service via ``CoreV1Api``.
+
+    Mirrors :func:`create_namespaced_pod`'s call shape — keyword-only arguments
+    and an optional explicit API client for testability.
+
+    :param namespace: namespace to create the Service in.
+    :param body: a dict matching ``V1Service``. The caller renders this from a
+        Service template.
+    :param k8s_core_v1_api: optional override; tests inject a mock.
+    :return: the created ``V1Service``.
+    """
+    api = k8s_core_v1_api or k8s_client.CoreV1Api()
+    return api.create_namespaced_service(namespace=namespace, body=body)
+
+
+def delete_namespaced_service(
+    *,
+    name: str,
+    namespace: str,
+    k8s_core_v1_api: k8s_client.CoreV1Api | None = None,
+) -> None:
+    """Best-effort delete of a Service via ``CoreV1Api``.
+
+    Swallows ``ApiException`` with status 404 or 410 (the Service is already
+    gone), re-raising any other status.
+
+    :param name: Service name.
+    :param namespace: Service namespace.
+    :param k8s_core_v1_api: optional override; tests inject a mock.
+    """
+    api = k8s_core_v1_api or k8s_client.CoreV1Api()
+    try:
+        api.delete_namespaced_service(name=name, namespace=namespace)
+    except ApiException as e:
+        if e.status in (404, 410):
+            return
+        raise
 
 
 @contextmanager

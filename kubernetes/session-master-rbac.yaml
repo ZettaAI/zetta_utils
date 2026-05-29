@@ -1,0 +1,35 @@
+# ServiceAccount + Role + RoleBinding for the session-master. Grants CoreV1Api
+# access to pods and services (CRUD) and read access to pods/status, scoped to
+# the sessions namespace. No ClusterRole, no cross-namespace access.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: session-master-sa
+  namespace: sessions
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: session-master
+  namespace: sessions
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: session-master
+  namespace: sessions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: session-master
+subjects:
+- kind: ServiceAccount
+  name: session-master-sa
+  namespace: sessions

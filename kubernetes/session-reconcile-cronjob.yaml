@@ -1,0 +1,36 @@
+# Daily reconcile backstop. Runs at 06:00 UTC; concurrencyPolicy: Forbid
+# ensures only one scan runs at a time. Finds orphaned or stale sessions that
+# cascade-GC missed and terminates them.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: session-reconcile
+  namespace: sessions
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: session-reconcile-sa
+          restartPolicy: Never
+          containers:
+          - name: session-reconcile
+            image: ${SESSIONS_IMAGE_TAG}
+            command: ["zetta", "session-reconcile"]
+            env:
+            - name: WORKLOAD_NAMESPACE
+              value: sessions
+            - name: SESSIONS_FIRESTORE_PROJECT
+              valueFrom:
+                secretKeyRef:
+                  name: sessions-firestore
+                  key: project
+                  optional: true
+            - name: SESSIONS_FIRESTORE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: sessions-firestore
+                  key: database
+                  optional: true

@@ -40,9 +40,11 @@ class RunInfo(Enum):
     WORKER_STATE = "worker_state"
     REGION_MISMATCH = "region_mismatch"
     SEMAPHORE_WIDTHS = "semaphore_widths"
+    QUEUED_AT = "queued_at"
 
 
 class RunState(Enum):
+    QUEUED = "queued"
     RUNNING = "running"
     TIMEDOUT = "timedout"
     COMPLETED = "completed"
@@ -68,7 +70,7 @@ def update_run_results(results: dict) -> None:
     update_run_info(RUN_ID, info)
 
 
-def _record_run(spec: dict | list | None = None) -> None:
+def record_run(spec: dict | list | None = None) -> None:
     """
     Records run info in a bucket for archiving.
     """
@@ -110,10 +112,30 @@ def update_run_info(run_id: str, info: DBRowDataT) -> None:
     RUN_DB[(run_id, col_keys)] = info
 
 
-def _check_run_id_conflict():
-    assert RUN_ID is not None
-    if RUN_ID in RUN_DB:
-        raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
+def _check_run_id_conflict(
+    run_id: str,
+    *,
+    allowed_prior_state: str | None = None,
+) -> None:
+    """
+    Raise ValueError if a run-info row already exists for ``run_id``.
+
+    :param run_id: the run id to check.
+    :param allowed_prior_state: if not ``None``, an existing row whose
+        ``state`` equals this value is permitted (no raise). Used by the
+        queued-state path to transition from QUEUED to RUNNING.
+    """
+    if run_id not in RUN_DB:
+        return
+    if allowed_prior_state is None:
+        raise ValueError(f"RUN_ID {run_id} already exists in database.")
+    row = RUN_DB[(run_id, (RunInfo.STATE.value,))]
+    current = row.get(RunInfo.STATE.value)
+    if current != allowed_prior_state:
+        raise ValueError(
+            f"RUN_ID {run_id} already exists with state={current!r}; "
+            f"only state={allowed_prior_state!r} would be permitted"
+        )
 
 
 def _send_heartbeat(run_id: str, bucket_egress_warned: set) -> None:
@@ -166,14 +188,33 @@ def _cleanup_pod_stats(run_id: str) -> None:
         logger.warning(f"Failed to cleanup pod stats: {e}")
 
 
+@attrs.define
+class RunCtx:
+    run_id: str
+    _state: RunState = attrs.field(alias="_state")
+
+    def transition_to_running(self) -> None:
+        if self._state == RunState.RUNNING:
+            return
+        if self._state != RunState.QUEUED:
+            raise RuntimeError(
+                f"transition_to_running called from state={self._state.value!r}; "
+                f"only QUEUED is permitted"
+            )
+        _check_run_id_conflict(self.run_id, allowed_prior_state=RunState.QUEUED.value)
+        update_run_info(self.run_id, {RunInfo.STATE.value: RunState.RUNNING.value})
+        self._state = RunState.RUNNING
+
+
 @contextmanager
-def run_ctx_manager(
+def run_ctx_manager(  # pylint: disable=too-many-statements
     main_run_process: bool,
     run_id: str | None = None,
     spec: dict | list | None = None,
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL_SEC,
     update_costs_interval: int = DEFAULT_UPDATE_COSTS_INTERVAL_SEC,
     pod_stats_interval: int = DEFAULT_POD_STATS_INTERVAL_SEC,
+    queued_at: float | None = None,
 ):
     bucket_egress_warned: set[str] = set()
 
@@ -189,22 +230,36 @@ def run_ctx_manager(
     heartbeat_sender = None
     update_costs_repeater = None
     pod_stats_repeater = None
+    run_ctx = None
     if main_run_process:
-        _check_run_id_conflict()
-
-        # Register run only when heartbeat is enabled.
-        # Auxiliary processes should not modify the main process entry.
-        status = RunState.RUNNING.value
-        info: DBRowDataT = {
-            RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
-            RunInfo.TIMESTAMP.value: time.time(),
-            RunInfo.STATE.value: status,
-            RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
-        }
-        _record_run(spec)
-        update_run_info(RUN_ID, info)
-
         assert heartbeat_interval > 0
+        _check_run_id_conflict(run_id)
+
+        if queued_at is None:
+            # Register run only when heartbeat is enabled.
+            # Auxiliary processes should not modify the main process entry.
+            status = RunState.RUNNING.value
+            info: DBRowDataT = {
+                RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
+                RunInfo.TIMESTAMP.value: time.time(),
+                RunInfo.STATE.value: status,
+                RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
+            }
+            record_run(spec)
+            update_run_info(RUN_ID, info)
+        else:
+            update_run_info(
+                run_id,
+                {
+                    RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
+                    RunInfo.TIMESTAMP.value: time.time(),
+                    RunInfo.STATE.value: RunState.QUEUED.value,
+                    RunInfo.QUEUED_AT.value: queued_at,
+                    RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
+                },
+            )
+            run_ctx = RunCtx(run_id=run_id, _state=RunState.QUEUED)
+
         heartbeat_sender = RepeatTimer(
             heartbeat_interval, partial(_send_heartbeat, run_id, bucket_egress_warned)
         )
@@ -219,7 +274,7 @@ def run_ctx_manager(
         pod_stats_repeater.start()
 
     try:
-        yield
+        yield run_ctx
     except Exception as e:
         status = RunState.FAILED.value
         raise e from None

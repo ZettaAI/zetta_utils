@@ -45,7 +45,7 @@ def _get_current_resources_and_stale_run_ids() -> (
         run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
     u_run_ids = set(run_resources.keys())
-    runs = RUN_DB.query(column_filter={"state": ["running"]})
+    runs = RUN_DB.query(column_filter={"state": ["running", "queued"]})
     u_run_ids.update(runs.keys())
     users = []
     heartbeats = []

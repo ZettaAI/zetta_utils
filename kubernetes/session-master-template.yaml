@@ -1,0 +1,60 @@
+# Per-session master Job template. The session-manager renders this per
+# session, substituting ${SESSION_ID} and ${SESSIONS_IMAGE_TAG} (CI-supplied
+# image tag, e.g. web_api_gpu:sessions-<sha>) before applying.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: session-master-${SESSION_ID}
+  namespace: sessions
+  labels:
+    app: session-master
+    sessionId: ${SESSION_ID}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: session-master
+        sessionId: ${SESSION_ID}
+    spec:
+      serviceAccountName: session-master-sa
+      restartPolicy: Never
+      containers:
+      - name: session-master
+        image: ${SESSIONS_IMAGE_TAG}
+        command: ["zetta", "session-master"]
+        env:
+        - name: SESSION_ID
+          value: ${SESSION_ID}
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: WORKLOAD_NAMESPACE
+          value: sessions
+        - name: SESSIONS_IMAGE_TAG
+          value: ${SESSIONS_IMAGE_TAG}
+        - name: SESSION_WORKER_TEMPLATE_PATH
+          value: /etc/sessions/session-worker-template.yaml
+        - name: SESSION_WORKER_SERVICE_TEMPLATE_PATH
+          value: /etc/sessions/session-worker-service.yaml
+        - name: OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: sessions-oauth
+              key: client-id
+        resources:
+          requests: { cpu: "0.1", memory: "256Mi" }
+          limits:   { cpu: "0.5", memory: "512Mi" }
+        volumeMounts:
+        - name: session-templates
+          mountPath: /etc/sessions
+      volumes:
+      - name: session-templates
+        configMap:
+          name: session-templates

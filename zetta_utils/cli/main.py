@@ -181,6 +181,24 @@ def show_registry():
     logger.critical(pprint.pformat(builder.REGISTRY, indent=4))
 
 
+@cli.command()
+def session_master() -> None:  # pragma: no cover # no logic, delegation
+    """Run the per-session master process. Driven by env vars."""
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    from zetta_utils.session import master  # pylint: disable=import-outside-toplevel
+
+    asyncio.run(master.main())
+
+
+@cli.command()
+def session_reconcile() -> None:  # pragma: no cover # no logic, delegation
+    """One-shot reconcile scan. Driven by env vars."""
+    from zetta_utils.session import reconcile  # pylint: disable=import-outside-toplevel
+
+    reconcile.run_reconcile()
+
+
 for cmd in run_info_cli.commands.values():
     cli.add_command(cmd)
 

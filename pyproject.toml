@@ -46,7 +46,7 @@ version = "0.0.2"
 [project.optional-dependencies]
 alignment = [
   "opencv-python-headless >= 4.5.5",
-  "torch >= 2.5",
+  "torch >= 2.11",
 ]
 all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
@@ -100,7 +100,11 @@ chunkedgraph = [
   # Note: graph_tool must be installed separately via conda:
   # conda install -c conda-forge graph-tool-base
 ]
+# torch floor stays >=2.5 (not 2.11): web_api-gpu pulls convnet, and its cu121
+# image runs torch 2.5.1 from the base image. Raising it would make pip upgrade
+# torch off the cu121 base. Non-GPU consumers still resolve to the newest torch.
 convnet = ["torch >= 2.5", "onnx2torch", "nvidia-ml-py >= 13.580"]
+cutie = ["cutie @ git+https://github.com/hkchengrex/Cutie.git"]
 databackends = [
   "google-cloud-datastore",
   "google-cloud-firestore"
@@ -179,7 +183,7 @@ modules = [
   "zetta_utils[chunkedgraph]",
   "zetta_utils[gpu]",
 ]
-montaging = ["zetta_utils[cloudvol, databackends, mazepa]", "torch >= 2.5"]
+montaging = ["zetta_utils[cloudvol, databackends, mazepa]", "torch >= 2.11"]
 public = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
@@ -197,7 +201,7 @@ segmentation = [
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
   "waterz @ git+https://github.com/ZettaAI/waterz.git@90898fb",
-  "cutie @ git+https://github.com/hkchengrex/Cutie.git",
+  "zetta_utils[cutie]",
 ]
 calcada = [
   "zetta_utils[segmentation]",
@@ -231,6 +235,9 @@ tensor-ops = [
   "scikit-image >= 0.25.0",  # footprint_rectangle
 ]
 
+# torch floor stays >=2.5 (not 2.11): web_api-gpu pulls tensor_ops -> tensor-typing,
+# and its cu121 image runs torch 2.5.1 from the base image. Non-GPU consumers still
+# resolve to the newest torch via --resolution highest.
 tensor-typing = ["torch >= 2.5", "numpy"]
 
 test = [
@@ -253,7 +260,7 @@ test = [
 ]
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
-  "torch >= 2.5",
+  "torch >= 2.11",
   "lightning ~= 2.2",
   "torchmetrics >= 0.11.4",
   "wandb >= 0.13.1",
@@ -273,6 +280,39 @@ viz = [
   "ipywidgets >= 7.7.0",
   "opencv-python-headless >= 4.5.5",
 ]
+web-api-base = [
+  # zetta_utils subpackages imported by web_api/app and internal.alignment.
+  "zetta_utils[tensor_ops]",       # tensor_ops.{common,convert,generators}, einops, torchfields, cv2
+  "zetta_utils[cloudvol]",         # layer.volumetric.cloudvol.build_cv_layer
+  "zetta_utils[tensorstore]",      # layer.volumetric.__init__ imports .tensorstore at module load
+  "zetta_utils[convnet]",          # internal.alignment.misalignment_detector -> zetta_utils.convnet
+  "zetta_utils[task_management]",  # task_management.* and db_annotations.* (databackends, sql, tenacity, pcg_skel)
+  "zetta_utils[cutie]",            # web_api/app/segmentation.py
+  # Web server stack (previously web_api/requirements.txt).
+  "fastapi",
+  "pydantic",
+  "hypercorn",
+  "google-cloud-iap",
+  "python-multipart",
+  # Imported directly but otherwise only available transitively.
+  "scipy",                         # internal/alignment/sift.py, web_api/app/alignment.py
+  "hydra-core",                    # web_api/app/segmentation.py
+  "omegaconf",                     # web_api/app/segmentation.py
+]
+# web_api -> CPU-only torch (no nvidia-* CUDA wheels), web_api-gpu -> CUDA torch.
+# torch is declared directly on each leaf extra (uv requires that for an
+# extra-scoped source) and pinned to the pytorch-cpu index for `web-api` via
+# [tool.uv.sources]; `web-api-gpu` keeps the default (CUDA) torch. The two extras
+# are declared conflicting in [tool.uv] so uv resolves a variant for each. Floor
+# stays >=2.5 so the cu121 base image's torch 2.5.1 satisfies web_api-gpu.
+#
+# web_api-gpu intentionally does NOT pull the `gpu` (tensorrt) extra: web_api only
+# uses convnet.load_model with tensorrt_enabled=False, so TensorRT is never
+# imported. Adding it would layer a multi-GB CUDA-13 runtime onto the CUDA-12.1
+# base for no functional gain (and a version mismatch). The GPU benefit here is
+# CUDA torch for cutie/alignment inference, not TensorRT.
+web-api = ["zetta_utils[web-api-base]", "torch >= 2.5"]
+web-api-gpu = ["zetta_utils[web-api-base]", "torch >= 2.5"]
 
 [project.scripts]
 zetta = "zetta_utils.cli.main:cli"
@@ -289,6 +329,24 @@ py-modules = ["zetta_utils"]
 override-dependencies = [
   "click~=8.0.1",
 ]
+# web_api targets CPU-only torch; web_api-gpu targets CUDA torch. Declaring the
+# extras conflicting lets uv resolve a different torch variant for each in one
+# lock (see [tool.uv.sources] below).
+conflicts = [
+  [{ extra = "web-api" }, { extra = "web-api-gpu" }],
+]
+
+# Opt-in index: only packages pinned to it via [tool.uv.sources] resolve here.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# For the `web-api` (CPU) extra, pull torch from the CPU wheel index so the
+# +cpu build is used and the multi-GB nvidia-* CUDA deps are not installed.
+# web_api-gpu / modules / training / all keep the default (CUDA) torch.
+torch = [{ index = "pytorch-cpu", extra = "web-api" }]
 
 # tensorrt-cu13* use the `wheel_stub` build backend, which fetches a real
 # wheel from pypi.nvidia.com matching the *host* platform during metadata

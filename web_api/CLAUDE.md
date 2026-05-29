@@ -48,6 +48,40 @@ OAuth2 token verification with @zetta.ai email domain restriction.
 
 Built and pushed via `build_web_api.py` at the repo root. Single script handles both CPU and GPU variants.
 
+### Dependencies
+
+web_api installs only the slim `web_api` / `web_api-gpu` extras (defined in the
+root `pyproject.toml`), not the heavy `modules` extra. Both build on a shared
+`web-api-base` extra that pulls `tensor_ops`, `cloudvol`, `tensorstore`, `convnet`,
+`task_management`, `cutie`, the web stack (fastapi/pydantic/hypercorn/
+google-cloud-iap/python-multipart), plus `scipy`, `hydra-core`, `omegaconf`.
+`web_api` = base + CPU torch; `web_api-gpu` = base + CUDA torch. `web_api-gpu`
+deliberately does **not** pull the `gpu`/tensorrt extra: web_api only calls
+`convnet.load_model` with `tensorrt_enabled=False`, so TensorRT is never imported,
+and adding it would layer a multi-GB CUDA-13 runtime onto the CUDA-12.1 base for no
+gain. When web_api gains an import that needs a new third-party package or a new
+`zetta_utils` subpackage, add the covering extra to `web-api-base` and regenerate
+the pinned files with `./update_pinned_requirements.sh`.
+
+**torch variant.** `web_api` and `web_api-gpu` are declared conflicting in
+`[tool.uv]`, and `[tool.uv.sources]` pins torch to the `pytorch-cpu` index for the
+`web_api` extra. So `requirements.web_api.txt` resolves `torch==…+cpu` with **no**
+`nvidia-*` CUDA wheels (multi-GB lighter), while `web_api-gpu`/`modules`/`all` keep
+the default CUDA torch. This is uv-only: plain `pip install '.[web_api-gpu]'`
+ignores it (which is why the GPU image keeps its base cu121 torch).
+
+- **CPU** (`Dockerfile`): installs `requirements.web_api.txt` `--no-deps` with
+  `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu` (so the `+cpu` torch
+  wheel resolves). Keeps the faust-cchardet/cchardet-stub shim because cutie needs
+  `cchardet`, which is pruned and does not build on Py3.12+.
+- **GPU** (`gpu.Dockerfile`): `pip install '.[web-api-gpu]'` on the
+  `pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime` base with `PIP_EXTRA_INDEX_URL`
+  pinned to cu121 — resolution leaves the base image's torch 2.5.1+cu121 untouched.
+- The `web-api-extras-build` CI job installs the CPU extra clean (with the CPU torch
+  index), smoke-imports `app.main`, and asserts the heavy extras
+  (lightning/wandb/tensorrt/...) stay out. `web-api-gpu-build` does a full GPU
+  `docker build`.
+
 ### Tag format
 `<semver>-<yyyymmddNN>` (e.g., `1.0.46-2026052001`). Semver tracks logic changes; `yyyymmddNN` is a per-day build counter for infra-only rebuilds that don't bump semver.
 

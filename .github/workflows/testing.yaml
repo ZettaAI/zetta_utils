@@ -417,9 +417,189 @@ jobs:
         run: make -C docs html
         shell: bash -l {0}
 
+  web-api-extras-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.14"
+          - "3.12"
+          - "3.11"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Get token from Github App
+        uses: actions/create-github-app-token@v3
+        id: app_token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PEM }}
+          # owner is required, otherwise the creds will fail the checkout step
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout from GitHub
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+          submodules: true
+          ssh-key: ${{ secrets.git_ssh_key }}
+          token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
+      - name: Get changed files
+        id: changed-py-files
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
+        with:
+          files: |
+            **/*.py
+            pyproject.toml
+            requirements*.txt
+            web_api/**
+      - name: Setup Conda
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
+      - name: Free up disk space
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker system prune -af
+          df -h
+        shell: bash -l {0}
+      - name: Install web_api extra (CPU) in a clean environment
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        env:
+          # requirements.web_api.txt pins torch==2.12.0+cpu, which lives on the
+          # pytorch CPU wheel index, not PyPI.
+          PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+          UV_INDEX: https://download.pytorch.org/whl/cpu
+        run: |
+          # cutie declares cchardet (pruned, doesn't build on 3.12+). The pinned
+          # requirements install with --no-deps, so the requirement is skipped;
+          # faust-cchardet provides the importable `cchardet` module at runtime.
+          pip install faust-cchardet
+          python install_zutils.py --mode=web_api --dockerfile --skip_apt
+        shell: bash -l {0}
+      - name: Smoke-import web_api (covers internal.alignment + cutie)
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: |
+          cd web_api && python -c "import app.main; print('web_api.app.main imported OK')"
+        shell: bash -l {0}
+      - name: Assert heavy modules extras are absent
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: |
+          status=0
+          for pkg in lightning wandb torchmetrics mitmproxy awscli kubernetes tensorrt-cu13; do
+            if pip show "$pkg" > /dev/null 2>&1; then
+              echo "ERROR: '$pkg' leaked into the web_api environment"
+              status=1
+            else
+              echo "ok: '$pkg' absent"
+            fi
+          done
+          exit $status
+        shell: bash -l {0}
+
+  web-api-gpu-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Get token from Github App
+        uses: actions/create-github-app-token@v3
+        id: app_token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PEM }}
+          # owner is required, otherwise the creds will fail the checkout step
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout from GitHub
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+          submodules: true
+          ssh-key: ${{ secrets.git_ssh_key }}
+          token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
+      - name: Get changed files
+        id: changed-build-files
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
+        with:
+          # The GPU image is expensive to build, so only rebuild it when the
+          # dependency surface or the web_api image definition changes.
+          files: |
+            pyproject.toml
+            requirements*.txt
+            web_api/**
+      - name: Free up disk space
+        if: ${{ steps.changed-build-files.outputs.any_changed == 'true' }}
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker system prune -af
+          df -h
+        shell: bash -l {0}
+      - name: Set up Docker Buildx
+        if: ${{ steps.changed-build-files.outputs.any_changed == 'true' }}
+        uses: docker/setup-buildx-action@v3
+      - name: Build web_api GPU image
+        if: ${{ steps.changed-build-files.outputs.any_changed == 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: web_api/gpu.Dockerfile
+          push: false
+          tags: web_api_gpu:ci
+
   all-checks-test:
     runs-on: ubuntu-latest
-    needs: [mypy, pytest, pylint-isort, test-docs]
+    needs: [mypy, pytest, pylint-isort, test-docs, web-api-extras-build, web-api-gpu-build]
     if: always()
     steps:
       - name: Success

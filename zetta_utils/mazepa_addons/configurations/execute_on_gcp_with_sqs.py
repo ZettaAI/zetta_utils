@@ -197,8 +197,8 @@ def _compute_worker_preload_modules() -> list[str] | None:
         from zetta_utils.parsing.spec_scan import extract_types
 
         spec = cue.load(spec_path)
-        names = extract_types(spec).names()
-        return compute_preload_set(names)
+        scan_result = extract_types(spec)
+        return compute_preload_set(scan_result.names(), scan_result.lambda_strs)
     except Exception as e:
         log.get_logger("zetta_utils").warning(
             f"Failed to compute worker preload modules from {spec_path}: {e}"

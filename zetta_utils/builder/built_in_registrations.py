@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import inspect
 import re
 from typing import Any, Callable, Optional
@@ -9,6 +10,16 @@ from packaging.specifiers import SpecifierSet
 from . import constants
 from .building import BuilderPartial
 from .registry import RegistryEntry, register, register_dynamic_resolver
+
+# Aliases a lambda string may reference, mapped to their importable module name.
+# Single source of truth shared with the forkserver preload computation so the
+# template preloads exactly the libraries a spec's lambdas will use.
+LAMBDA_LIBS: tuple[tuple[str, str], ...] = (("np", "numpy"), ("torch", "torch"))
+
+
+def lambda_referenced_libs(lambda_str: str) -> list[tuple[str, str]]:
+    """Return the (alias, module) pairs from `LAMBDA_LIBS` used in `lambda_str`."""
+    return [(alias, mod) for alias, mod in LAMBDA_LIBS if re.search(rf"\b{alias}\b", lambda_str)]
 
 
 @register("lambda", allow_partial=False)
@@ -24,17 +35,10 @@ def efficient_parse_lambda_str(lambda_str: str, name: Optional[str] = None) -> C
 
 @register("invoke_lambda_str", allow_partial=False)
 def invoke_lambda_str(*args: list, lambda_str: str, **kwargs: dict) -> Any:
-    # pylint: disable=import-outside-toplevel,eval-used
     eval_globals = dict(globals())
-    if re.search(r"\bnp\b", lambda_str):
-        import numpy as np
-
-        eval_globals["np"] = np
-    if re.search(r"\btorch\b", lambda_str):
-        import torch
-
-        eval_globals["torch"] = torch
-    return eval(lambda_str, eval_globals)(*args, **kwargs)
+    for alias, module_name in lambda_referenced_libs(lambda_str):
+        eval_globals[alias] = importlib.import_module(module_name)
+    return eval(lambda_str, eval_globals)(*args, **kwargs)  # pylint: disable=eval-used
 
 
 _DEFAULT_SPEC = SpecifierSet(constants.DEFAULT_VERSION_SPEC)

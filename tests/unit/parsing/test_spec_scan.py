@@ -53,3 +53,32 @@ def test_top_level_list():
     spec = [{"@type": "x"}, {"@type": "y"}]
     res = extract_types(spec)
     assert res.names() == {"x", "y"}
+
+
+def test_lambda_strs_collected():
+    spec = {
+        "@type": "lambda",
+        "lambda_str": "lambda x: np.where(x == 0, 1, x)",
+    }
+    res = extract_types(spec)
+    assert res.names() == {"lambda"}
+    assert res.lambda_strs == ("lambda x: np.where(x == 0, 1, x)",)
+
+
+def test_lambda_strs_nested():
+    spec = {
+        "@type": "outer",
+        "fns": [
+            {"@type": "lambda", "lambda_str": "lambda a: a"},
+            {"@type": "build_cv_layer", "path": "gs://x"},
+            {"@type": "lambda", "lambda_str": "lambda b: torch.zeros(b)"},
+        ],
+    }
+    res = extract_types(spec)
+    assert res.lambda_strs == ("lambda a: a", "lambda b: torch.zeros(b)")
+
+
+def test_no_lambda_strs():
+    spec = {"@type": "build_cv_layer", "path": "gs://x"}
+    res = extract_types(spec)
+    assert res.lambda_strs == ()

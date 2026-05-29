@@ -27,11 +27,12 @@ def _make_node(mocker, name, pool_name):
     return node
 
 
-def _make_pool(mocker, name, current, max_size, locations=None):
+def _make_pool(mocker, name, current, max_size, locations=None, total_max=0):
     pool = mocker.MagicMock()
     pool.name = name
     pool.initial_node_count = current
     pool.autoscaling.max_node_count = max_size
+    pool.autoscaling.total_max_node_count = total_max
     pool.locations = locations or ["us-central1-a"]
     return pool
 
@@ -220,3 +221,88 @@ def test_pester_errors_when_no_deployment(mock_core_api, mock_apps_api, mock_gke
 
     assert result.exit_code != 0
     assert "No deployment found" in result.output
+
+
+def test_pester_explicit_pool_skips_pod_discovery(
+    mocker, mock_core_api, mock_apps_api, mock_gke, mock_event_wait
+):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=2),
+    ]
+    mock_apps_api.read_namespaced_deployment.side_effect = [
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=2),
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=10),
+    ]
+    # No scheduled pods — pod-discovery would error, but --pool bypasses it.
+    mock_core_api.list_namespaced_pod.return_value.items = [_make_pod(mocker, None)]
+    mock_gke.list_node_pools.return_value = [_make_pool(mocker, "pool-x", current=3, max_size=20)]
+
+    result = _run(args=["--pool", "pool-x"])
+
+    assert result.exit_code == 0, result.output
+    assert "Using explicit pools: ['pool-x']" in result.output
+    mock_core_api.read_node.assert_not_called()
+    mock_gke.resize_node_pool.assert_called_once_with("proj", "us-central1", "c", "pool-x", 8)
+
+
+def test_pester_uses_total_max_when_per_zone_max_unset(
+    mocker, mock_core_api, mock_apps_api, mock_gke, mock_event_wait
+):
+    """Regional pools set total_max_node_count instead of per-zone max_node_count.
+
+    In that case `max_node_count` defaults to 0 in proto; without the
+    fallback we'd incorrectly skip the pool as "already at max (0)".
+    """
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=2),
+    ]
+    mock_apps_api.read_namespaced_deployment.side_effect = [
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=2),
+        _make_deployment(mocker, "run-test-run-io", spec_replicas=10, ready_replicas=10),
+    ]
+    mock_core_api.list_namespaced_pod.return_value.items = [_make_pod(mocker, None)]
+    mock_gke.list_node_pools.return_value = [
+        _make_pool(mocker, "pool-r", current=1, max_size=0, total_max=300),
+    ]
+
+    result = _run(args=["--pool", "pool-r"])
+
+    assert result.exit_code == 0, result.output
+    mock_gke.resize_node_pool.assert_called_once_with("proj", "us-central1", "c", "pool-r", 6)
+
+
+def test_pester_worker_group_optional(
+    mocker, mock_core_api, mock_apps_api, mock_gke, mock_event_wait
+):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run", spec_replicas=10, ready_replicas=2),
+    ]
+    mock_apps_api.read_namespaced_deployment.side_effect = [
+        _make_deployment(mocker, "run-test-run", spec_replicas=10, ready_replicas=2),
+        _make_deployment(mocker, "run-test-run", spec_replicas=10, ready_replicas=10),
+    ]
+    mock_core_api.list_namespaced_pod.return_value.items = [_make_pod(mocker, "node-a")]
+    mock_core_api.read_node.return_value = _make_node(mocker, "node-a", "pool-1")
+    mock_gke.list_node_pools.return_value = [_make_pool(mocker, "pool-1", current=3, max_size=20)]
+
+    result = CliRunner().invoke(
+        pester_nodes_cli,
+        [
+            "pester-nodes",
+            "test-run",
+            "-n",
+            "5",
+            "--cluster-name",
+            "c",
+            "--cluster-region",
+            "us-central1",
+            "--cluster-project",
+            "proj",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    # Selector must be run_id-only when worker_group omitted.
+    list_kwargs = mock_apps_api.list_namespaced_deployment.call_args.kwargs
+    assert list_kwargs["label_selector"] == "run_id=test-run"
+    mock_gke.resize_node_pool.assert_called_once_with("proj", "us-central1", "c", "pool-1", 8)

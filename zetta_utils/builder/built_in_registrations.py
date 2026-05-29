@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from typing import Any, Callable, Optional
 
 from packaging.specifiers import SpecifierSet
@@ -23,7 +24,17 @@ def efficient_parse_lambda_str(lambda_str: str, name: Optional[str] = None) -> C
 
 @register("invoke_lambda_str", allow_partial=False)
 def invoke_lambda_str(*args: list, lambda_str: str, **kwargs: dict) -> Any:
-    return eval(lambda_str)(*args, **kwargs)  # pylint: disable=eval-used
+    # pylint: disable=import-outside-toplevel,eval-used
+    eval_globals = dict(globals())
+    if re.search(r"\bnp\b", lambda_str):
+        import numpy as np
+
+        eval_globals["np"] = np
+    if re.search(r"\btorch\b", lambda_str):
+        import torch
+
+        eval_globals["torch"] = torch
+    return eval(lambda_str, eval_globals)(*args, **kwargs)
 
 
 _DEFAULT_SPEC = SpecifierSet(constants.DEFAULT_VERSION_SPEC)

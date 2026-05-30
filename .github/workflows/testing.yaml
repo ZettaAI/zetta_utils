@@ -518,16 +518,25 @@ jobs:
       - name: Assert heavy modules extras are absent
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: |
-          status=0
-          for pkg in lightning wandb torchmetrics mitmproxy awscli kubernetes tensorrt-cu13; do
-            if pip show "$pkg" > /dev/null 2>&1; then
-              echo "ERROR: '$pkg' leaked into the web_api environment"
-              status=1
-            else
-              echo "ok: '$pkg' absent"
-            fi
-          done
-          exit $status
+          python - <<'PY'
+          import importlib.metadata as md
+          import sys
+
+          heavy = [
+              "lightning", "wandb", "torchmetrics",
+              "mitmproxy", "awscli", "kubernetes", "tensorrt-cu13",
+          ]
+          leaked = []
+          for pkg in heavy:
+              try:
+                  md.version(pkg)
+              except md.PackageNotFoundError:
+                  print(f"ok: '{pkg}' absent")
+              else:
+                  print(f"ERROR: '{pkg}' leaked into the web_api environment")
+                  leaked.append(pkg)
+          sys.exit(1 if leaked else 0)
+          PY
         shell: bash -l {0}
 
   web-api-gpu-build:

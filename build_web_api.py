@@ -4,8 +4,11 @@ import argparse
 import re
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from typing import Callable, Optional
 
 REPO_ROOT = Path(__file__).resolve().parent
 VERSION_FILE = REPO_ROOT / "web_api" / "VERSION"
@@ -57,35 +60,81 @@ def next_build_number(semver: str, date_str: str) -> int:
     return (max(nums) + 1) if nums else 1
 
 
-def run_shell(cmd: str) -> int:
-    print(f"Running:\n{cmd}")
-    return subprocess.call(cmd, shell=True)
+_PRINT_LOCK = threading.Lock()
+
+
+def _safe_print(line: str) -> None:
+    with _PRINT_LOCK:
+        print(line, flush=True)
+
+
+def run_shell(cmd: str, prefix: Optional[str] = None) -> int:
+    if prefix is None:
+        print(f"Running:\n{cmd}")
+        return subprocess.call(cmd, shell=True)
+
+    tag = f"[{prefix}]"
+    _safe_print(f"{tag} Running: {cmd}")
+    with subprocess.Popen(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    ) as proc:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            _safe_print(f"{tag} {line.rstrip()}")
+        return proc.wait()
 
 
 def image_ref(variant: str, full_tag: str, project: str, region: str, repo: str) -> str:
     return f"{region}-docker.pkg.dev/{project}/{repo}/{VARIANTS[variant]['image']}:{full_tag}"
 
 
-def build_variant(variant: str, full_tag: str, project: str, region: str, repo: str) -> bool:
+def build_variant(
+    variant: str,
+    full_tag: str,
+    project: str,
+    region: str,
+    repo: str,
+    prefix: Optional[str] = None,
+) -> bool:
     ref = image_ref(variant, full_tag, project, region, repo)
     dockerfile = VARIANTS[variant]["dockerfile"]
     cmd = (
         f"docker build --platform linux/amd64 --network=host "
         f"-t {ref} -f {dockerfile} ."
     )
-    return run_shell(cmd) == 0
+    return run_shell(cmd, prefix=prefix) == 0
 
 
-def push_variant(variant: str, full_tag: str, project: str, region: str, repo: str) -> bool:
-    return run_shell(f"docker push {image_ref(variant, full_tag, project, region, repo)}") == 0
+def push_variant(
+    variant: str,
+    full_tag: str,
+    project: str,
+    region: str,
+    repo: str,
+    prefix: Optional[str] = None,
+) -> bool:
+    cmd = f"docker push {image_ref(variant, full_tag, project, region, repo)}"
+    return run_shell(cmd, prefix=prefix) == 0
 
 
-def update_latest(variant: str, full_tag: str, project: str, region: str, repo: str) -> bool:
+def update_latest(
+    variant: str,
+    full_tag: str,
+    project: str,
+    region: str,
+    repo: str,
+    prefix: Optional[str] = None,
+) -> bool:
     src = image_ref(variant, full_tag, project, region, repo)
     dst = image_ref(variant, "latest", project, region, repo)
-    if run_shell(f"docker tag {src} {dst}") != 0:
+    if run_shell(f"docker tag {src} {dst}", prefix=prefix) != 0:
         return False
-    return run_shell(f"docker push {dst}") == 0
+    return run_shell(f"docker push {dst}", prefix=prefix) == 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -128,6 +177,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip tagging and pushing the :latest image (default: push :latest on --bump/--rebuild).",
     )
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Run CPU and GPU variants sequentially (default: parallel when --variant both).",
+    )
     return parser
 
 
@@ -144,28 +198,43 @@ def _resolve_tag(args):
     return full_tag, new_semver
 
 
+def _run_phase(
+    phase: str,
+    variants,
+    full_tag: str,
+    args,
+    fn: Callable[..., bool],
+) -> bool:
+    parallel = not args.no_parallel and len(variants) > 1
+
+    def call(v: str) -> bool:
+        prefix = v if parallel else None
+        ok = fn(v, full_tag, args.project, args.region, args.repo, prefix=prefix)
+        if not ok:
+            _safe_print(f"{phase} failed for {v}.")
+        return ok
+
+    if not parallel:
+        for v in variants:
+            if not call(v):
+                return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=len(variants)) as pool:
+        results = list(pool.map(call, variants))
+    return all(results)
+
+
 def _run_builds(variants, full_tag, args) -> bool:
-    for v in variants:
-        if not build_variant(v, full_tag, args.project, args.region, args.repo):
-            print(f"Build failed for {v}, exiting.")
-            return False
-    return True
+    return _run_phase("Build", variants, full_tag, args, build_variant)
 
 
 def _run_pushes(variants, full_tag, args) -> bool:
-    for v in variants:
-        if not push_variant(v, full_tag, args.project, args.region, args.repo):
-            print(f"Push failed for {v}, exiting.")
-            return False
-    return True
+    return _run_phase("Push", variants, full_tag, args, push_variant)
 
 
 def _run_latest(variants, full_tag, args) -> bool:
-    for v in variants:
-        if not update_latest(v, full_tag, args.project, args.region, args.repo):
-            print(f"Failed to update :latest for {v}, exiting.")
-            return False
-    return True
+    return _run_phase("Latest update", variants, full_tag, args, update_latest)
 
 
 def _write_and_commit_version(new_semver, no_commit: bool) -> bool:
@@ -212,7 +281,8 @@ def main() -> int:
     full_tag, new_semver = _resolve_tag(args)
     print(f"Target tag: {full_tag}")
     variants = ["cpu", "gpu"] if args.variant == "both" else [args.variant]
-    print(f"Variants: {variants}")
+    mode = "sequential" if args.no_parallel or len(variants) == 1 else "parallel"
+    print(f"Variants: {variants} ({mode})")
     if not args.no_build and not _run_builds(variants, full_tag, args):
         return 1
     if args.no_push:

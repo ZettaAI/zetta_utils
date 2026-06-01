@@ -759,9 +759,10 @@ def main():
     parser = argparse.ArgumentParser(description="Install zetta_utils and dependencies")
     parser.add_argument(
         "--mode",
-        choices=["modules", "all"],
+        choices=["modules", "all", "web_api", "web_api_gpu"],
         default="all",
-        help='Installation type: "modules" for basic installation or "all" for full installation',
+        help='Installation type: "modules"/"all" for full installs, '
+        '"web_api"/"web_api_gpu" for the slim web_api deployment extras',
     )
     parser.add_argument(
         "--dockerfile",
